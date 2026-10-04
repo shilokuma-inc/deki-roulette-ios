@@ -19,7 +19,7 @@ GitHub Actions（`.github/workflows/`）。どのワークフローも最初に 
 
 | ワークフロー | トリガー | 内容 |
 |---|---|---|
-| Build | 全ブランチへの push と PR | シミュレータでビルドしてユニットテストを実行 |
+| Build | 全ブランチへの push と Fork からの PR | シミュレータでビルドしてユニットテストを実行 |
 | Archive | `main` への push、手動実行 | Release 構成でアーカイブし、App Store Connect API キーで署名して IPA を書き出す |
 | Upload | `develop` と `release/**` への push、手動実行 | Archive に加えて TestFlight へアップロードし、IPA を Artifacts に残す |
 

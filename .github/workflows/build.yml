@@ -13,6 +13,8 @@ concurrency:
 jobs:
   test:
     name: ${{ github.ref_name }}
+    # 同じリポジトリのブランチは push で実行済みなので、PR では Fork からのものだけ実行する
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: macos-latest
 
     steps:

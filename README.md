@@ -23,7 +23,7 @@ GitHub Actions（`.github/workflows/`）。どのワークフローも最初に 
 | Archive | `main` への push、手動実行 | Release 構成でアーカイブし、App Store Connect API キーで署名して IPA を書き出す |
 | Upload | `develop` と `release/**` への push、手動実行 | Archive に加えて TestFlight へアップロードし、IPA を Artifacts に残す |
 
-ドキュメントだけの変更（`*.md`、`docs/**`）では Build を実行しない（Upload / Archive は実行する）。
+ドキュメントだけの変更（`**/*.md`、`docs/**`）では Build を実行しない（Upload / Archive は実行する）。
 
 作業ブランチで走るのは Build だけ。TestFlight へのアップロードには App Store Connect 側の 24 時間あたりの
 上限（`Upload limit reached (90382)`）があり、作業ブランチまで上げていると枠を使い切るため。

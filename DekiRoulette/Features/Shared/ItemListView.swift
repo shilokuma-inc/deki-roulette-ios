@@ -23,7 +23,7 @@ struct ItemListView: View {
 
     @State private var input = ""
     @State private var confirmingRemoveAll = false
-    /// 直前に「✕」で削除した項目。トーストを出している間だけ持ち、期限が来ると確定する。
+    /// 直前に「✕」かスワイプで削除した項目。トーストを出している間だけ持ち、期限が来ると確定する。
     @State private var pendingRemoval: RemovedItem?
     @State private var undoTask: Task<Void, Never>?
     @State private var pressingCount = 0
@@ -34,6 +34,8 @@ struct ItemListView: View {
     @State private var listsFull = false
     @State private var managingLists = false
     @State private var markToggleCount = 0
+    /// 左スワイプで削除ボタンを出している行。開いておくのは常に 1 行だけ。
+    @State private var swipedId: UUID?
     @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
     @FocusState private var inputFocused: Bool
     /// 画面収録・ミラーリング中は相手側にも印が映るので伏せる。無ければ（Preview 等）キャプチャ無しとみなす。
@@ -96,7 +98,10 @@ struct ItemListView: View {
         .sheet(isPresented: $managingLists) { SavedListsView() }
         // スピン／並べ替えを始めたら取り消せなくする。結果と項目リストの整合を保つため
         .onChange(of: busy) { _, isBusy in
-            if isBusy { dismissUndo() }
+            if isBusy {
+                dismissUndo()
+                swipedId = nil
+            }
         }
         .confirmationDialog(L10n.removeAllConfirmTitle, isPresented: $confirmingRemoveAll, titleVisibility: .visible) {
             Button(L10n.removeAll, role: .destructive) {
@@ -261,6 +266,16 @@ struct ItemListView: View {
                     mark: mark,
                     showMark: revealMarks && mark != nil,
                     busy: busy,
+                    swipeOpen: Binding(
+                        get: { swipedId == item.id },
+                        set: { open in
+                            if open {
+                                swipedId = item.id
+                            } else if swipedId == item.id {
+                                swipedId = nil
+                            }
+                        }
+                    ),
                     onPressingChanged: { pressing in pressingCount += pressing ? 1 : -1 },
                     onLongPress: { handleLongPress(item.id) },
                     onRemove: { handleRemove(item.id) }
@@ -269,7 +284,7 @@ struct ItemListView: View {
         }
     }
 
-    /// 「✕」で削除した直後に出す、元に戻すための帯。
+    /// 「✕」かスワイプで削除した直後に出す、元に戻すための帯。
     private func undoToast(for removed: RemovedItem) -> some View {
         HStack(spacing: 12) {
             Text(L10n.removedToast(removed.item.label))
@@ -330,6 +345,7 @@ struct ItemListView: View {
     }
 
     private func handleRemove(_ id: UUID) {
+        if swipedId == id { swipedId = nil }
         guard let removed = onRemove(id) else { return }
         // 直前の削除が残っていればそれは確定し、新しい削除に置き換える（多段 Undo は持たない）
         withAnimation(Theme.undoToastAnimation) { pendingRemoval = removed }
@@ -373,13 +389,49 @@ private struct ItemRow: View {
     let mark: Mark?
     let showMark: Bool
     let busy: Bool
+    /// 左スワイプで削除ボタンを出しているか。開く行を 1 つに絞るため親が持つ。
+    @Binding var swipeOpen: Bool
     let onPressingChanged: (Bool) -> Void
     let onLongPress: () -> Void
     let onRemove: () -> Void
 
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// スワイプで出す削除ボタンの幅。文字と同じ比率で伸ばす。
+    @ScaledMetric(relativeTo: .subheadline) private var actionWidth: CGFloat = 80
+    @State private var rowWidth: CGFloat = 0
+    /// 指を動かしている間の横の移動量。指を離すか、スクロールに取られると自動で nil に戻る。
+    @GestureState(resetTransaction: Transaction(animation: Theme.swipeSettleAnimation))
+    private var dragTranslation: CGFloat?
+    /// 今回の操作が横のスワイプか。動き始めた向きで決め、次に触れるまで変えない。
+    @State private var swiping: Bool?
+    /// 今回の操作で長押しの指定が成立した。そのまま指を動かしてもスワイプは始めない。
+    @State private var longPressed = false
+
+    private var offset: CGFloat {
+        if swiping == true, !busy, let dragTranslation {
+            return SwipeToDelete.offset(
+                translation: dragTranslation, wasOpen: swipeOpen, actionWidth: actionWidth, rowWidth: rowWidth
+            )
+        }
+        return swipeOpen ? -actionWidth : 0
+    }
 
     var body: some View {
+        ZStack(alignment: .trailing) {
+            if offset < 0 {
+                deleteAction
+            }
+            content
+                .offset(x: offset)
+        }
+        .clipShape(.rect(cornerRadius: 12))
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
+        // 視差効果を減らす設定では、開閉も指を離した時点の位置へ即座に収める
+        .transaction { if reduceMotion { $0.animation = nil } }
+    }
+
+    private var content: some View {
         HStack(spacing: 0) {
             HStack(spacing: 10) {
                 MarkDot(color: color, mark: showMark ? mark : nil)
@@ -397,9 +449,21 @@ private struct ItemRow: View {
             // 「ただ項目に触れただけ」にしか映らない。
             .onLongPressGesture(
                 minimumDuration: Config.longPressDuration,
-                perform: { if !busy { onLongPress() } },
-                onPressingChanged: onPressingChanged
+                perform: {
+                    longPressed = true
+                    if !busy { onLongPress() }
+                },
+                onPressingChanged: { pressing in
+                    // 触れ始めたら前回の操作の判定を捨てる。スクロールに取られると onEnded が来ないため
+                    if pressing {
+                        longPressed = false
+                        swiping = nil
+                    }
+                    onPressingChanged(pressing)
+                }
             )
+            // 削除ボタンを出している間だけ、タップで閉じる
+            .simultaneousGesture(TapGesture().onEnded { settle(open: false) }, including: swipeOpen ? .all : .subviews)
             // 印を伏せている間は選択中の読み上げも落とす。残すと指定先が伝わる。
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(showMark ? .isSelected : [])
@@ -422,6 +486,62 @@ private struct ItemRow: View {
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(showMark ? Theme.ink500 : Theme.ink700, lineWidth: 1)
         )
+        // 縦のスクロールを妨げないよう同時に認識させ、横が優勢なときだけ反応する
+        .simultaneousGesture(swipe, including: busy ? .subviews : .all)
+    }
+
+    /// スワイプで現れる削除ボタン。見た目は指定の有無で変えない。
+    /// VoiceOver では同じ操作を「✕」で行えるので読み上げから外す。
+    private var deleteAction: some View {
+        Button(action: onRemove) {
+            Text(L10n.delete)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Theme.onDestructive)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .padding(.horizontal, 8)
+                .frame(width: max(actionWidth, -offset))
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(Theme.destructive)
+        .disabled(busy)
+        .accessibilityHidden(true)
+    }
+
+    private var swipe: some Gesture {
+        // 行そのものを動かすので、自分の座標で測ると移動量が揺れる。画面の座標で測る
+        DragGesture(minimumDistance: Config.swipeMinimumDistance, coordinateSpace: .global)
+            .updating($dragTranslation) { value, state, _ in
+                state = value.translation.width
+            }
+            .onChanged { value in
+                guard swiping == nil else { return }
+                swiping = !longPressed && SwipeToDelete.isHorizontal(value.translation.width, value.translation.height)
+            }
+            .onEnded { value in
+                guard swiping == true, !busy else { return }
+                let current = SwipeToDelete.offset(
+                    translation: value.translation.width, wasOpen: swipeOpen, actionWidth: actionWidth, rowWidth: rowWidth
+                )
+                let predicted = SwipeToDelete.offset(
+                    translation: value.predictedEndTranslation.width, wasOpen: swipeOpen,
+                    actionWidth: actionWidth, rowWidth: rowWidth
+                )
+                switch SwipeToDelete.outcome(
+                    offset: current, predictedOffset: predicted, actionWidth: actionWidth, rowWidth: rowWidth
+                ) {
+                case .delete: onRemove()
+                case .open: settle(open: true)
+                case .closed: settle(open: false)
+                }
+            }
+    }
+
+    /// 指を離したあと、開いた位置か閉じた位置へ収める。
+    private func settle(open: Bool) {
+        withAnimation(Theme.swipeSettleAnimation) { swipeOpen = open }
     }
 }
 
@@ -482,3 +602,4 @@ private struct ItemRow: View {
     .padding()
     .background(Theme.ink900)
 }
+

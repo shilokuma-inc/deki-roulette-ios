@@ -16,6 +16,10 @@ struct ItemListView: View {
     let onRemoveAll: () -> Void
     let onRestore: (Item, Int) -> Void
     let onLongPress: (UUID) -> Void
+    /// 保存したリストで項目を置き換える。
+    let onLoad: ([Item]) -> Void
+
+    @Environment(SavedListsModel.self) private var savedLists
 
     @State private var input = ""
     @State private var confirmingRemoveAll = false
@@ -25,7 +29,13 @@ struct ItemListView: View {
     @State private var pressingCount = 0
     @State private var hinting = false
     @State private var hintTask: Task<Void, Never>?
+    @State private var savingList = false
+    @State private var listName = ""
+    @State private var listsFull = false
+    @State private var managingLists = false
     @FocusState private var inputFocused: Bool
+    /// 画面収録・ミラーリング中は相手側にも印が映るので伏せる。無ければ（Preview 等）キャプチャ無しとみなす。
+    @Environment(ScreenCaptureMonitor.self) private var screenCapture: ScreenCaptureMonitor?
     /// 入力欄を横並びにするために最低限確保したい幅。文字と同じ比率で伸ばし、
     /// 大きい文字や狭い画面で足りなければ `ViewThatFits` が縦積みに切り替える。
     @ScaledMetric(relativeTo: .subheadline) private var inputMinWidth: CGFloat = 160
@@ -35,8 +45,15 @@ struct ItemListView: View {
     private var inputDisabled: Bool { busy || atCapacity }
 
     /// 指定した本人だけが確認できればよいので、印は項目に触れている間と
-    /// 指定直後だけ出す。演出中と結果表示中は無条件で伏せる。
-    private var revealMarks: Bool { !concealMarks && (pressingCount > 0 || hinting) }
+    /// 指定直後だけ出す。演出中と結果表示中、画面がキャプチャされている間は無条件で伏せる。
+    private var revealMarks: Bool {
+        MarkVisibility.reveals(
+            concealed: concealMarks,
+            captured: screenCapture?.isCaptured ?? false,
+            pressing: pressingCount > 0,
+            hinting: hinting
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -60,6 +77,20 @@ struct ItemListView: View {
         .onChange(of: inputDisabled) { _, disabled in
             if disabled { inputFocused = false }
         }
+        .alert(L10n.saveListTitle, isPresented: $savingList) {
+            TextField(L10n.saveListNamePlaceholder, text: $listName)
+            Button(L10n.cancel, role: .cancel) {}
+            Button(L10n.save) { savedLists.save(name: listName, items: items) }
+                .disabled(SavedListName.normalize(listName).isEmpty)
+        } message: {
+            Text(L10n.saveListMessage)
+        }
+        .alert(L10n.savedListsFullTitle, isPresented: $listsFull) {
+            Button(L10n.close, role: .cancel) {}
+        } message: {
+            Text(L10n.savedListsFullMessage(Config.maxSavedLists))
+        }
+        .sheet(isPresented: $managingLists) { SavedListsView() }
         // スピン／並べ替えを始めたら取り消せなくする。結果と項目リストの整合を保つため
         .onChange(of: busy) { _, isBusy in
             if isBusy { dismissUndo() }
@@ -74,7 +105,7 @@ struct ItemListView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .center, spacing: 8) {
             Text(L10n.itemListTitle)
                 .font(.callout.weight(.bold))
                 .foregroundStyle(Theme.ivory)
@@ -89,7 +120,49 @@ struct ItemListView: View {
             Text(L10n.itemCount(items.count, Config.maxItems))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(Theme.muted)
+            listMenu
         }
+    }
+
+    /// 見出し行のメニュー。保存・読み込み・管理だけを置き、行本体の挙動には触れない。
+    private var listMenu: some View {
+        Menu {
+            Button(action: beginSaveList) {
+                Label(L10n.saveListAction, systemImage: "square.and.arrow.down")
+            }
+            .disabled(items.isEmpty)
+
+            Menu {
+                if savedLists.lists.isEmpty {
+                    Text(L10n.noSavedLists)
+                } else {
+                    ForEach(savedLists.lists) { list in
+                        Button {
+                            onLoad(list.items)
+                        } label: {
+                            Text(list.name)
+                            Text(L10n.savedListItemCount(list.items.count))
+                        }
+                    }
+                }
+            } label: {
+                Label(L10n.loadListAction, systemImage: "tray.and.arrow.up")
+            }
+
+            Button {
+                managingLists = true
+            } label: {
+                Label(L10n.manageListsAction, systemImage: "list.bullet.rectangle")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Theme.muted)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .disabled(busy)
+        .accessibilityLabel(L10n.listMenuLabel)
     }
 
     private var addForm: some View {
@@ -237,6 +310,16 @@ struct ItemListView: View {
         }
     }
 
+    /// 上限に達していれば保存に進まず、その旨だけ伝える。
+    private func beginSaveList() {
+        if savedLists.atCapacity {
+            listsFull = true
+        } else {
+            listName = ""
+            savingList = true
+        }
+    }
+
     private func handleRemove(_ id: UUID) {
         guard let removed = onRemove(id) else { return }
         // 直前の削除が残っていればそれは確定し、新しい削除に置き換える（多段 Undo は持たない）
@@ -343,8 +426,10 @@ private struct ItemRow: View {
         onRemove: { _ in nil },
         onRemoveAll: {},
         onRestore: { _, _ in },
-        onLongPress: { _ in }
+        onLongPress: { _ in },
+        onLoad: { _ in }
     )
+    .environment(SavedListsModel(lists: []))
     .padding()
     .background(Theme.ink900)
 }
@@ -360,8 +445,10 @@ private struct ItemRow: View {
         onRemove: { _ in nil },
         onRemoveAll: {},
         onRestore: { _, _ in },
-        onLongPress: { _ in }
+        onLongPress: { _ in },
+        onLoad: { _ in }
     )
+    .environment(SavedListsModel(lists: []))
     .padding()
     .background(Theme.ink900)
     .dynamicTypeSize(.accessibility5)
@@ -378,8 +465,10 @@ private struct ItemRow: View {
         onRemove: { _ in nil },
         onRemoveAll: {},
         onRestore: { _, _ in },
-        onLongPress: { _ in }
+        onLongPress: { _ in },
+        onLoad: { _ in }
     )
+    .environment(SavedListsModel(lists: []))
     .padding()
     .background(Theme.ink900)
 }

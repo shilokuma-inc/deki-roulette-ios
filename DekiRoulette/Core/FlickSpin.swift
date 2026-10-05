@@ -18,9 +18,9 @@ enum FlickSpin {
     static func angularVelocity(samples: [Sample], center: CGPoint) -> Double {
         let usable = samples.filter { distance(from: center, to: $0.location) >= Config.flickDeadZoneRadius }
         guard let last = usable.last else { return 0 }
-        // 窓の始まりより前の最後の 1 点を起点にする。窓の中に 1 点しかなくても経過時間が取れる
+        // 窓の中の点だけを使う。窓をまたぐ区間を足すと、最後に止めていても手前の動きで回ってしまう
         let windowStart = last.time - Config.flickSampleWindow
-        let firstIndex = usable.lastIndex { $0.time <= windowStart } ?? 0
+        let firstIndex = usable.firstIndex { $0.time >= windowStart } ?? (usable.count - 1)
         let recent = usable[firstIndex...]
         guard let first = recent.first, last.time > first.time else { return 0 }
 
@@ -72,10 +72,10 @@ final class FlickSampleBuffer {
             samples.removeAll()
         }
         samples.append(sample)
-        // 計算に使うのは直近の窓と、その直前の 1 点だけ。余裕を持たせて古いものを捨てる
+        // 計算に使うのは直近の窓の中だけ。余裕を持たせて古いものを捨てる
         let keepFrom = sample.time - Config.flickSampleWindow * 2
-        if let index = samples.firstIndex(where: { $0.time >= keepFrom }), index > 1 {
-            samples.removeFirst(index - 1)
+        if let index = samples.firstIndex(where: { $0.time >= keepFrom }), index > 0 {
+            samples.removeFirst(index)
         }
     }
 

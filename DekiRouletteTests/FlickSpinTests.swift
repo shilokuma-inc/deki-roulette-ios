@@ -59,6 +59,15 @@ struct FlickSpinTests {
         #expect(FlickSpin.angularVelocity(samples: samples, center: center) == 0)
     }
 
+    @Test func 窓をまたぐ区間は使わない() {
+        // 速く払ったあと、止めた位置の記録が無いまま窓より長く経ってから離す
+        var samples = arc(degreesPerSecond: 900, duration: 0.2)
+        let last = samples[samples.count - 1]
+        let stopped = CGPoint(x: center.x + 100 * cos(.pi / 180 * 120), y: center.y + 100 * sin(.pi / 180 * 120))
+        samples.append(FlickSpin.Sample(time: last.time + Config.flickSampleWindow * 1.5, location: stopped))
+        #expect(FlickSpin.angularVelocity(samples: samples, center: center) == 0)
+    }
+
     @Test func 直線の払いでも中心のまわりの成分を拾う() {
         // 盤面上側を右へまっすぐ 1500pt/秒
         let samples = (0...12).map { step in
@@ -101,12 +110,12 @@ struct FlickSpinTests {
         #expect(buffer.samples.count == 1)
     }
 
-    @Test @MainActor func 窓より古い点は直前の1点だけ残す() throws {
+    @Test @MainActor func 窓の2倍より古い点は捨てる() throws {
         let buffer = FlickSampleBuffer()
         for sample in arc(degreesPerSecond: 600, duration: 1) { buffer.append(sample) }
         let first = try #require(buffer.samples.first)
         let last = try #require(buffer.samples.last)
-        #expect(last.time - first.time <= Config.flickSampleWindow * 2 + 1.0 / 60 + 1e-9)
+        #expect(last.time - first.time <= Config.flickSampleWindow * 2 + 1e-9)
     }
 
     // MARK: 周回数

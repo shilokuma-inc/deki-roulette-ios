@@ -351,8 +351,10 @@ private struct ItemRow: View {
         atCapacity: false,
         onAdd: { $0.count },
         onRemove: { _ in },
-        onLongPress: { _ in }
+        onLongPress: { _ in },
+        onLoad: { _ in }
     )
+    .environment(SavedListsModel(lists: []))
     .padding()
     .background(Theme.ink900)
     .dynamicTypeSize(.accessibility5)

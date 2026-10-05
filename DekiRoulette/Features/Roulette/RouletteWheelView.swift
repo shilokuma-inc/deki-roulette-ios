@@ -6,7 +6,8 @@ struct RouletteWheelView: View {
     let items: [Item]
     let rotation: Double
 
-    private static let referenceSize: CGFloat = 320
+    /// 線幅・縁・ハブはこの直径を 1 として `scale` で比例させる。ラベルの文字サイズと省略は `WheelLabel` に任せる。
+    private static let referenceSize = CGFloat(WheelLabel.referenceDiameter)
     private static let ink = Theme.onSlice
 
     var body: some View {
@@ -40,8 +41,8 @@ struct RouletteWheelView: View {
         let center = CGPoint(x: side / 2, y: side / 2)
         let count = items.count
         let sliceAngle = count > 0 ? 360.0 / Double(count) : 360
-        let maxLabelLength = count > 8 ? 5 : count > 5 ? 7 : 10
-        let fontSize = (count > 8 ? 9.0 : count > 5 ? 11.0 : 13.0) * scale
+        let maxLabelLength = WheelLabel.limit(count: count, diameter: side)
+        let fontSize = WheelLabel.fontSize(count: count, diameter: side)
 
         return ZStack {
             Circle().fill(Theme.wheelRim)
@@ -53,8 +54,8 @@ struct RouletteWheelView: View {
                 Circle().fill(Theme.wheelRim).frame(width: radius * 2, height: radius * 2)
             } else if count == 1 {
                 Circle().fill(Theme.sliceColor(at: 0)).frame(width: radius * 2, height: radius * 2)
-                Text(truncate(items[0].label, max: maxLabelLength))
-                    .font(.system(size: 15 * scale, weight: .bold))
+                Text(WheelLabel.truncate(items[0].label, limit: maxLabelLength))
+                    .font(.system(size: fontSize, weight: .bold))
                     .foregroundStyle(Self.ink)
             } else {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -70,7 +71,7 @@ struct RouletteWheelView: View {
                                 .stroke(Self.ink, lineWidth: 2 * scale)
                         )
 
-                    Text(truncate(item.label, max: maxLabelLength))
+                    Text(WheelLabel.truncate(item.label, limit: maxLabelLength))
                         .font(.system(size: fontSize, weight: .bold))
                         .foregroundStyle(Self.ink)
                         .fixedSize()
@@ -86,10 +87,6 @@ struct RouletteWheelView: View {
             Circle().fill(Theme.wheelHubMark).frame(width: 12 * scale, height: 12 * scale)
         }
         .frame(width: side, height: side)
-    }
-
-    private func truncate(_ label: String, max: Int) -> String {
-        label.count > max ? String(label.prefix(max)) + "…" : label
     }
 
     private func polar(center: CGPoint, angle: Double, radius: CGFloat) -> CGPoint {

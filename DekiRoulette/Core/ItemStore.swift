@@ -71,10 +71,14 @@ struct ItemStore {
         try? JSONEncoder().encode(items.map(StoredItem.init))
     }
 
-    /// JSON として読めないときは nil。読めた項目は追加時と同じ正規化を通し、
-    /// 空になったもの・`id` が重複するものは落とし、上限で切る。
+    /// JSON として読めないときは nil。読めた項目は `sanitize` で整える。
     static func decode(_ data: Data) -> [Item]? {
         guard let stored = try? JSONDecoder().decode([StoredItem].self, from: data) else { return nil }
+        return sanitize(stored)
+    }
+
+    /// 読み込んだ項目を追加時と同じ正規化に通し、空になったもの・`id` が重複するものは落とし、上限で切る。
+    static func sanitize(_ stored: [StoredItem]) -> [Item] {
         var seen = Set<UUID>()
         var items: [Item] = []
         for entry in stored {

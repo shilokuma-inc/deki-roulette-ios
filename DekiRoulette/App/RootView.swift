@@ -12,6 +12,8 @@ struct RootView: View {
     // 両画面のモデルはここで持つ。設定シートから両方の項目を初期状態に戻せるよう environment にも流す。
     @State private var rouletteModel = RouletteModel(store: ItemStore(key: .roulette) { L10n.defaultItems })
     @State private var orderModel = OrderModel(store: ItemStore(key: .order) { L10n.orderDefaultItems })
+    /// 名前を付けて保存したリスト。両画面で 1 つを共有する。
+    @State private var savedLists = SavedListsModel(store: SavedListStore())
 
     init() {
         let appearance = UITabBarAppearance()
@@ -33,6 +35,7 @@ struct RootView: View {
         .tint(Theme.ivory)
         .environment(rouletteModel)
         .environment(orderModel)
+        .environment(savedLists)
     }
 }
 

@@ -13,11 +13,19 @@ struct ItemListView: View {
     let onAdd: ([String]) -> Int
     let onRemove: (UUID) -> Void
     let onLongPress: (UUID) -> Void
+    /// 保存したリストで項目を置き換える。
+    let onLoad: ([Item]) -> Void
+
+    @Environment(SavedListsModel.self) private var savedLists
 
     @State private var input = ""
     @State private var pressingCount = 0
     @State private var hinting = false
     @State private var hintTask: Task<Void, Never>?
+    @State private var savingList = false
+    @State private var listName = ""
+    @State private var listsFull = false
+    @State private var managingLists = false
     @FocusState private var inputFocused: Bool
     /// 画面収録・ミラーリング中は相手側にも印が映るので伏せる。無ければ（Preview 等）キャプチャ無しとみなす。
     @Environment(ScreenCaptureMonitor.self) private var screenCapture: ScreenCaptureMonitor?
@@ -56,10 +64,24 @@ struct ItemListView: View {
         .onChange(of: inputDisabled) { _, disabled in
             if disabled { inputFocused = false }
         }
+        .alert(L10n.saveListTitle, isPresented: $savingList) {
+            TextField(L10n.saveListNamePlaceholder, text: $listName)
+            Button(L10n.cancel, role: .cancel) {}
+            Button(L10n.save) { savedLists.save(name: listName, items: items) }
+                .disabled(SavedListName.normalize(listName).isEmpty)
+        } message: {
+            Text(L10n.saveListMessage)
+        }
+        .alert(L10n.savedListsFullTitle, isPresented: $listsFull) {
+            Button(L10n.close, role: .cancel) {}
+        } message: {
+            Text(L10n.savedListsFullMessage(Config.maxSavedLists))
+        }
+        .sheet(isPresented: $managingLists) { SavedListsView() }
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .center, spacing: 8) {
             Text(L10n.itemListTitle)
                 .font(.callout.weight(.bold))
                 .foregroundStyle(Theme.ivory)
@@ -67,7 +89,49 @@ struct ItemListView: View {
             Text(L10n.itemCount(items.count, Config.maxItems))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(Theme.muted)
+            listMenu
         }
+    }
+
+    /// 見出し行のメニュー。保存・読み込み・管理だけを置き、行本体の挙動には触れない。
+    private var listMenu: some View {
+        Menu {
+            Button(action: beginSaveList) {
+                Label(L10n.saveListAction, systemImage: "square.and.arrow.down")
+            }
+            .disabled(items.isEmpty)
+
+            Menu {
+                if savedLists.lists.isEmpty {
+                    Text(L10n.noSavedLists)
+                } else {
+                    ForEach(savedLists.lists) { list in
+                        Button {
+                            onLoad(list.items)
+                        } label: {
+                            Text(list.name)
+                            Text(L10n.savedListItemCount(list.items.count))
+                        }
+                    }
+                }
+            } label: {
+                Label(L10n.loadListAction, systemImage: "tray.and.arrow.up")
+            }
+
+            Button {
+                managingLists = true
+            } label: {
+                Label(L10n.manageListsAction, systemImage: "list.bullet.rectangle")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Theme.muted)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .disabled(busy)
+        .accessibilityLabel(L10n.listMenuLabel)
     }
 
     private var addForm: some View {
@@ -190,6 +254,16 @@ struct ItemListView: View {
         }
     }
 
+    /// 上限に達していれば保存に進まず、その旨だけ伝える。
+    private func beginSaveList() {
+        if savedLists.atCapacity {
+            listsFull = true
+        } else {
+            listName = ""
+            savingList = true
+        }
+    }
+
     private func handleLongPress(_ id: UUID) {
         onLongPress(id)
         hinting = true
@@ -269,8 +343,10 @@ private struct ItemRow: View {
         atCapacity: false,
         onAdd: { $0.count },
         onRemove: { _ in },
-        onLongPress: { _ in }
+        onLongPress: { _ in },
+        onLoad: { _ in }
     )
+    .environment(SavedListsModel(lists: []))
     .padding()
     .background(Theme.ink900)
 }
@@ -284,8 +360,10 @@ private struct ItemRow: View {
         atCapacity: false,
         onAdd: { $0.count },
         onRemove: { _ in },
-        onLongPress: { _ in }
+        onLongPress: { _ in },
+        onLoad: { _ in }
     )
+    .environment(SavedListsModel(lists: []))
     .padding()
     .background(Theme.ink900)
     .dynamicTypeSize(.accessibility5)
@@ -300,8 +378,10 @@ private struct ItemRow: View {
         atCapacity: false,
         onAdd: { $0.count },
         onRemove: { _ in },
-        onLongPress: { _ in }
+        onLongPress: { _ in },
+        onLoad: { _ in }
     )
+    .environment(SavedListsModel(lists: []))
     .padding()
     .background(Theme.ink900)
 }

@@ -56,6 +56,14 @@ enum Config {
     /// 削除した項目を「元に戻す」で戻せる時間。過ぎると削除が確定する。
     static let undoDuration: TimeInterval = 5
 
+    // MARK: スワイプ削除
+
+    /// 行のスワイプを始めるまでに指が動く距離（pt）。長押しが不成立になる 10pt より大きくして、
+    /// 長押しの途中でスワイプが始まらないようにする。
+    static let swipeMinimumDistance: CGFloat = 20
+    /// 行幅に対してこれより多く左に引いたら、指を離した時点で削除する。
+    static let swipeDeleteRatio: CGFloat = 0.5
+
     // MARK: 触覚
 
     /// 触覚フィードバックの ON/OFF を保存する `UserDefaults` のキー。未設定なら ON。

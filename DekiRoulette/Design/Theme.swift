@@ -136,6 +136,15 @@ enum Theme {
 
     /// 削除を元に戻すトーストの出入り。
     static let undoToastAnimation = Animation.easeOut(duration: 0.2)
+
+    // MARK: スワイプ削除
+
+    /// 行を左にスワイプしたときに出る削除ボタンの塗り。外観に依らず固定し、文字は `onDestructive` で載せる。
+    static let destructive = Color(hex: 0xC62B3B)
+    /// 削除ボタンの文字。
+    static let onDestructive = Color(hex: 0xFFFFFF)
+    /// 指を離したあと、行が開く／閉じる位置へ収まる動き。
+    static let swipeSettleAnimation = Animation.spring(duration: 0.3, bounce: 0)
 }
 
 extension Color {

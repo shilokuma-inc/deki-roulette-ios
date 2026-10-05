@@ -52,6 +52,11 @@ struct ThemeContrastTests {
     }
 
     @Test(arguments: styles)
+    func スワイプの削除ボタンの文字は塗りに対して4_5対1以上(style: UIUserInterfaceStyle) {
+        #expect(ratio(Theme.onDestructive, on: Theme.destructive, style) >= 4.5)
+    }
+
+    @Test(arguments: styles)
     func 沈めたスライスでもラベルは4_5対1以上(style: UIUserInterfaceStyle) {
         for index in 0..<Theme.sliceColors.count {
             let dimmed = composite(resolve(Theme.sliceDim, style), over: resolve(Theme.sliceColor(at: index), style))
@@ -65,7 +70,7 @@ struct ThemeContrastTests {
     @Test func 盤面の色は外観設定で変わらない() {
         let fixed = [
             Theme.onSlice, Theme.wheelRim, Theme.wheelEdge, Theme.wheelHub, Theme.wheelHubMark,
-            Theme.flare, Theme.onFlare,
+            Theme.flare, Theme.onFlare, Theme.destructive, Theme.onDestructive,
         ] + Theme.sliceColors
         for color in fixed {
             #expect(resolve(color, .light) == resolve(color, .dark))

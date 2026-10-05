@@ -49,10 +49,27 @@ struct SlicePaletteTests {
     }
 
     @Test func 盤面の塗りと色見本は継ぎ目で同じようにずらす() {
-        let shifted = SlicePalette.index(at: 10, count: 11, paletteSize: Theme.sliceColors.count)
-        #expect(Theme.sliceColor(at: 10, count: 11) == Theme.sliceColors[shifted])
-        #expect(Theme.sliceAccent(at: 10, count: 11) == Theme.sliceAccents[shifted])
-        #expect(Theme.sliceColor(at: 10, count: 11) != Theme.sliceColor(at: 0, count: 11))
-        #expect(Theme.sliceColor(at: 10, count: 12) == Theme.sliceColor(at: 0, count: 12))
+        let paletteSize = Theme.sliceColors.count
+        let seam = paletteSize + 1
+        let last = seam - 1
+        let shifted = SlicePalette.index(at: last, count: seam, paletteSize: paletteSize)
+        #expect(Theme.sliceColor(at: last, count: seam) == Theme.sliceColors[shifted])
+        #expect(Theme.sliceAccent(at: last, count: seam) == Theme.sliceAccents[shifted])
+        #expect(Theme.sliceColor(at: last, count: seam) != Theme.sliceColor(at: 0, count: seam))
+        #expect(Theme.sliceColor(at: last, count: seam + 1) == Theme.sliceColor(at: 0, count: seam + 1))
+    }
+
+    @Test func 塗りと文字用の色は同じ数だけある() {
+        #expect(Theme.sliceColors.count == Theme.sliceAccents.count)
+        #expect(Theme.sliceColors.count == 12)
+    }
+
+    @Test func 二十四件でも同じ色は二回までしか出ない() {
+        let paletteSize = Theme.sliceColors.count
+        for count in 1...Self.maxCount {
+            let colors = indices(count: count, paletteSize: paletteSize)
+            let most = Dictionary(grouping: colors, by: { $0 }).values.map(\.count).max() ?? 0
+            #expect(most <= 2, "count=\(count)")
+        }
     }
 }

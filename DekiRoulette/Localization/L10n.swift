@@ -62,6 +62,25 @@ enum L10n {
     static var share: String { tr("share") }
     static var resultHeading: String { tr("resultHeading") }
     static var appName: String { tr("appName") }
+    static var listMenuLabel: String { tr("listMenuLabel") }
+    static var saveListAction: String { tr("saveListAction") }
+    static var loadListAction: String { tr("loadListAction") }
+    static var manageListsAction: String { tr("manageListsAction") }
+    static var noSavedLists: String { tr("noSavedLists") }
+    static var saveListTitle: String { tr("saveListTitle") }
+    static var saveListNamePlaceholder: String { tr("saveListNamePlaceholder") }
+    static var saveListMessage: String { tr("saveListMessage") }
+    static var save: String { tr("save") }
+    static var cancel: String { tr("cancel") }
+    static var savedListsFullTitle: String { tr("savedListsFullTitle") }
+    static func savedListsFullMessage(_ max: Int) -> String { fmt("savedListsFullMessage", max) }
+    static var savedListsTitle: String { tr("savedListsTitle") }
+    static func savedListItemCount(_ count: Int) -> String { fmt("savedListItemCount", count) }
+    static var savedListsEmptyHint: String { tr("savedListsEmptyHint") }
+    static var renameListTitle: String { tr("renameListTitle") }
+    static var rename: String { tr("rename") }
+    static var delete: String { tr("delete") }
+    static func renameListAccessibilityLabel(_ name: String) -> String { fmt("renameListAccessibilityLabel", name) }
 
     static var defaultItems: [String] { lines("defaultItems") }
     static var orderDefaultItems: [String] { lines("orderDefaultItems") }

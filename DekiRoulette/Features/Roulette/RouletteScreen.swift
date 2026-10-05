@@ -29,7 +29,8 @@ struct RouletteScreen: View {
                     atCapacity: model.atCapacity,
                     onAdd: { model.addItems($0) },
                     onRemove: { model.removeItem(id: $0) },
-                    onLongPress: { model.toggleTarget(id: $0) }
+                    onLongPress: { model.toggleTarget(id: $0) },
+                    onLoad: { model.replaceItems($0) }
                 )
                 .frame(maxWidth: regular ? Theme.Layout.listWidthRegular : .infinity)
             }
@@ -110,6 +111,7 @@ struct RouletteScreen: View {
 
 #Preview {
     RouletteScreen(model: RouletteModel(items: ItemLabel.makeItems(L10n.defaultItems)))
+        .environment(SavedListsModel(lists: []))
 }
 
 #Preview("AX5") {

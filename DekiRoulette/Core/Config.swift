@@ -32,4 +32,8 @@ enum Config {
 
     /// 追加の入力欄が伸びる行数の上限。改行区切りの貼り付けはこの行数を超えるとスクロールする。
     static let bulkInputVisibleLines = 5
+    /// 名前を付けて保存できる項目リストの数。
+    static let maxSavedLists = 20
+    /// 保存するリストの名前の最大文字数（正規化後）。
+    static let maxSavedListNameLength = 30
 }

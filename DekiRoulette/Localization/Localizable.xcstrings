@@ -27,13 +27,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add an item"
+            "value" : "Add items (one per line)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "項目を入力"
+            "value" : "項目を入力（改行で複数追加）"
           }
         }
       }

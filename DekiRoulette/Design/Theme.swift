@@ -91,6 +91,26 @@ enum Theme {
 
     /// 結果が現れる演出。両画面で使い回す。
     static let revealAnimation = Animation.timingCurve(0.2, 0.9, 0.3, 1, duration: Config.revealAnimationDuration)
+
+    // MARK: レイアウト
+
+    /// 画面の寸法。Web 版では Tailwind のユーティリティ（`max-w-3xl` / `w-[min(320px,78vw)]`）だったもの。
+    /// 横並び（`horizontalSizeClass == .regular`、主に iPad）では盤面を基準より大きく描く。
+    enum Layout {
+        /// 縦積みでの盤面の上限。ラベルの省略と文字サイズの基準（`WheelLabel.referenceDiameter`）と同じ大きさ。
+        static let wheelMaxWidthCompact = CGFloat(WheelLabel.referenceDiameter)
+        /// 横並びでの盤面の上限。13 インチ iPad の横向きで余白が目立たない大きさ。
+        static let wheelMaxWidthRegular: CGFloat = 480
+        /// 横並びでの項目リストの幅。
+        static let listWidthRegular: CGFloat = 360
+        /// 横並びの 2 列の間隔。縦積みでは上下の間隔に使う。
+        static let columnSpacing: CGFloat = 48
+        /// ページの左右の余白。
+        static let pageHorizontalPadding: CGFloat = 20
+        /// ページ全体の上限。横並びの 2 列 + 間隔 + 左右の余白がちょうど収まる幅。
+        /// compact の端末はこれより狭いので、縦積みの見え方には影響しない。
+        static let pageMaxWidth = wheelMaxWidthRegular + columnSpacing + listWidthRegular + pageHorizontalPadding * 2
+    }
 }
 
 extension Color {

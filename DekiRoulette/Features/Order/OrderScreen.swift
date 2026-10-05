@@ -19,7 +19,7 @@ struct OrderScreen: View {
             Text(L10n.orderHelpAimStealth)
             Text(L10n.orderHelpAimRandom)
         } content: {
-            AdaptiveStack(horizontal: sizeClass == .regular, spacing: 48) {
+            AdaptiveStack(horizontal: regular, alignment: .center, spacing: Theme.Layout.columnSpacing) {
                 resultSection
                 ItemListView(
                     items: model.items,
@@ -31,10 +31,12 @@ struct OrderScreen: View {
                     onRemove: { model.removeItem(id: $0) },
                     onLongPress: { model.cycleMark(id: $0) }
                 )
-                .frame(maxWidth: sizeClass == .regular ? 320 : .infinity)
+                .frame(maxWidth: regular ? Theme.Layout.listWidthRegular : .infinity)
             }
         }
     }
+
+    private var regular: Bool { sizeClass == .regular }
 
     private var resultSection: some View {
         VStack(spacing: 24) {

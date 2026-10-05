@@ -104,7 +104,15 @@ iOS 版はこの仕様を元に移植しており、プラットフォーム差�
 - 削除した項目に指定（当たり／先頭／末尾）が付いていれば、その指定も外す。
 - 削除すると表示中の結果を消す。
 - iOS 版のみ: 見出し行に「すべて削除」を置き、確認ダイアログを経て全件削除する。項目 0 件と演出中は出さない。指定と結果も消える。
-- iOS 版のみ: 「✕」で削除した直後の 5 秒間、リストの下に「{ラベル} を削除しました　元に戻す」を出す。
+- iOS 版のみ: 行を左にスワイプすると、右端に「削除」ボタンが現れる。押すと「✕」と同じく削除する。
+  - 指が 20pt（`Config.swipeMinimumDistance`）動き、その時点で横が優勢なときだけスワイプとして扱う。縦や斜めはスクロールに譲る。
+  - 行幅の半分（`Config.swipeDeleteRatio`）を越えて引いたら、指を離した時点でそのまま削除する。勢いだけでは削除しない。
+    それ未満なら、離した勢いを足した位置が削除ボタンの半分を越えれば開いたまま止め、越えなければ閉じる。
+  - 開いておくのは常に 1 行だけ。開いた行のタップで閉じる。演出が始まったら閉じ、演出中はスワイプできない。
+  - 長押し（§6.1）は指が 10pt 動くと不成立になるので、スワイプしようとして指定することはない。長押しで指定が成立したあとに
+    指を動かしても、その操作ではスワイプを始めない。削除ボタンの見た目は指定の有無で変えない。
+  - 削除ボタンは読み上げから外す（VoiceOver では「✕」で同じ操作ができる）。`accessibilityAction` は置かない。
+- iOS 版のみ: 「✕」かスワイプで削除した直後の 5 秒間、リストの下に「{ラベル} を削除しました　元に戻す」を出す。
   - 「元に戻す」で同じ `id` の項目を元の位置に戻す。指定（当たり／先頭／末尾）は復元しない。戻すと表示中の結果は消える。
   - スピン／並べ替えを始めたら閉じて取り消し不可にする。表示中に別の項目を削除したら直前の削除は確定して置き換える（多段 Undo は持たない）。
   - 元の位置が項目数を超えていれば末尾に戻す。同じ項目がすでにあるか上限 (24) に達していれば何もしない。
@@ -466,7 +474,8 @@ iOS 版には対応物が無い、または OS が代替する項目。
 | 画面キャプチャの考慮は無い | 画面がキャプチャされている間は印を伏せる（§6.3 の条件 3） | `UIScreen.isCaptured` と `UIScreen.capturedDidChangeNotification` で判定する。状態は `ScreenCaptureMonitor`（`@Observable`）が持ち、`Environment` で両画面の `ItemListView` に届く。取得元は `ScreenCaptureSource` プロトコルで差し替え可能（`UIScreen.main` は使わず接続中のシーンの画面を読む）。印を出す判定は `MarkVisibility.reveals`。「使い方」の隠し操作の説明に「画面を共有・収録している間は出ない」旨を足しており、本文には表示しない |
 | スピンの開始は「スピン」ボタンのみ（§5.2） | ボタンに加えて盤面のフリックでも開始できる | 指を離した時点の角速度（`FlickSpin.angularVelocity`。盤面中心から `flickDeadZoneRadius` 以内は無視）が `Config.flickMinAngularVelocity` 以上なら開始する。強さは周回数（`Config.fullSpinRange`）にだけ写し（`FlickSpin.fullSpins`、`flickMaxAngularVelocity` で上限）、止まる位置の式と `pendingOutcome` の仕組みは変えない。フリックの向きは問わず常に時計回りに回る。閾値未満のドラッグでは盤面を動かさない（追従させると止まった位置と結果の対応がずれて見える）。盤面上のドラッグはページのスクロールより優先する。盤面は `accessibilityHidden` のままで、VoiceOver と動きを減らす設定の利用者はボタンで操作する |
 | 停止後の強調は結果ラベルのみ（§5.3） | 針の下のスライスを盤面上でも強調する | 結果が出ている間、止まったスライス以外に `onSlice` を薄く重ねて沈める（`Theme.sliceDim`。沈めた上でもラベルは 4.5:1 を保つ）。停止の瞬間だけそのスライスを 1.04 倍に押し出し、針を 4pt 沈めてから弾ませて戻す。項目の追加・削除・指定の変更で結果が消えると強調も解ける。`accessibilityReduceMotion` では押し出しと針の跳ねを省き、沈めるだけにする。`gold` / `flare` は使わない |
-| 削除は「✕」のみで取り消せない | 見出し行の「すべて削除」（`confirmationDialog`）と、「✕」直後 `UNDO_MS` = 5000 ms の「元に戻す」トースト（§4.3） | `removeItem` が削除した項目と位置（`RemovedItem`）を返し、View がトーストの状態を持つ。`restore(_:at:)` は指定を復元しない。演出開始でトーストは閉じる。トーストは `AccessibilityNotification.Announcement` で読み上げる |
+| 削除は「✕」のみで取り消せない | 見出し行の「すべて削除」（`confirmationDialog`）と、「✕」かスワイプで削除した直後 `UNDO_MS` = 5000 ms の「元に戻す」トースト（§4.3） | `removeItem` が削除した項目と位置（`RemovedItem`）を返し、View がトーストの状態を持つ。`restore(_:at:)` は指定を復元しない。演出開始でトーストは閉じる。トーストは `AccessibilityNotification.Announcement` で読み上げる |
+| （無し） | 行の左スワイプで削除（§4.3、`SwipeToDelete`） | 行は `ScrollView` 内の `VStack` で `List` ではないため `.swipeActions` は使えず、`DragGesture` を `simultaneousGesture` で付けて自前で持つ。行自体をオフセットで動かすので、移動量は `.global` 座標で測る（`.local` だと値が揺れる）。開閉と削除の判定は `SwipeToDelete` の純粋関数。削除ボタンの塗り `destructive` と文字 `onDestructive` は外観に依らず固定 |
 | 触覚フィードバックは無し | スピン開始 `.impact(.medium)`、スピン中は針が境目を越えるたび `.selection`、停止・結果表示 `.success`。順番決めは行が 1 件現れるごと `.selection`、全件そろって `.success`。長押しで指定が切り替わった瞬間 `.impact(.light)` | iOS 17 の `sensoryFeedback(_:trigger:)`。回転は `withAnimation` で最終値まで一気に書き込まれ補間中の角度は observable でないため、開始角・終了角・`SPIN_EASING`（`CubicBezierCurve`）から境目を越える時刻の列を `HapticSchedule.boundaryCrossings` で先に求め、`Config.hapticMinInterval`（60ms）未満の間隔は間引いて `TickScheduler` の `Task` で順に刻む。終盤は減速に合わせて間隔が開く。スピンの完了・中断でタスクはキャンセル。`accessibilityReduceMotion` では境目の刻みと 1 件ごとの刻みを省き、開始と結果だけ鳴らす。設定シート先頭の「触覚フィードバック」スイッチで OFF にでき、`UserDefaults`（`hapticsEnabled`、未設定は ON）に保存する。文言はこの見出しだけで、長押しに触れる説明は置かない。長押しの触覚は本人の指にしか伝わらないので見た目には何も足さない。音は出さない |
 | 音は鳴らさない | スピン中の回転音（`SpinSoundPlayer`） | 針がスライスの境目を越えるたびに短いクリック音を鳴らす。鳴らす時刻は `SpinTicks` が `SPIN_EASING` を逆算して求め、32ms（`clickMinInterval`）より詰まったものは間引くので、序盤は連打、終盤は減速に合わせて間隔が開く。波形は `ClickTrack` が 1 本に合成して一度に流す。音源は `Resources/Sounds/click.wav`（`scripts/make-click-sound.swift` で生成）。`AVAudioSession` は `.ambient` なので消音スイッチに従い、他アプリの音は止めない。`accessibilityReduceMotion` では盤面が回らないので鳴らさない |
 | （設定は無し） | 設定シートの「効果音」 | 回転音の ON / OFF。既定は ON（`UserDefaults` の `soundEnabled`）。設定の項目は効果音・項目の初期化・著作権の 3 つ |

@@ -75,6 +75,14 @@ ON/OFF は `@AppStorage(Config.hapticsEnabledKey)`。設定の文言は「触覚
 `OrderModel.shuffleItems` が `Shuffler.arrange` を呼ぶ。Fisher-Yates で一様にシャッフルしてから先頭・末尾を入れ替える。
 引き直し方式は取らない。結果の行は `resultId` で作り直し、`revealOnAppear` に `RevealTiming.delay` を掛けて 1 件ずつ出す。
 
+### スワイプ削除の仕組み
+
+項目の行は `ScrollView` 内の `VStack` で `List` ではないので、`.swipeActions` ではなく `ItemRow` が自前で持つ。
+`DragGesture(coordinateSpace: .global)` を `simultaneousGesture` で付け（行を `offset` で動かすため `.local` だと値が揺れる）、
+動き始めの向きが横のときだけ追従させて縦スクロールに譲る。開閉と削除の判定は `SwipeToDelete`（`Core/`）。
+開いている行は `ItemListView` が 1 つだけ持つ。長押しで指定が成立した操作ではスワイプを始めない。
+削除ボタンは読み上げから外し、VoiceOver は従来の「✕」を使う。
+
 ### ステルス前提の UI
 
 Web 版と同じ。以下は仕様であって削ったり戻したりしない。

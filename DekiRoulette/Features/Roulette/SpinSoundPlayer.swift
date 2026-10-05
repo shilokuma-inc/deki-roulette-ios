@@ -17,11 +17,14 @@ final class SpinSoundPlayer {
     /// 素材の読み込みとオーディオの準備。画面が出たところで呼んでおく。
     /// セッションの有効化はメインスレッドで待つと UI が固まるので、別スレッドで行い `play(at:)` はその完了を待つ。
     func prepare() {
-        guard click == nil, let loaded = loadClick() else { return }
-        click = loaded
-        engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: loaded.format)
-
+        if click == nil {
+            guard let loaded = loadClick() else { return }
+            click = loaded
+            engine.attach(player)
+            engine.connect(player, to: engine.mainMixerNode, format: loaded.format)
+        }
+        // 前回の準備に失敗していれば nil に戻してあるので、ここでやり直す
+        guard sessionSetup == nil else { return }
         sessionSetup = Task.detached(priority: .utility) {
             let session = AVAudioSession.sharedInstance()
             do {
@@ -44,8 +47,11 @@ final class SpinSoundPlayer {
         let current = generation
         let requested = ContinuousClock.now
         Task { [weak self] in
-            // セッションの準備が済むまでエンジンは起動しない。失敗していれば鳴らさない
-            guard await sessionSetup.value, let self, self.generation == current else { return }
+            // セッションの準備が済むまでエンジンは起動しない。失敗していれば鳴らさず、次の再生で準備し直す
+            let ready = await sessionSetup.value
+            guard let self else { return }
+            if !ready, self.sessionSetup == sessionSetup { self.sessionSetup = nil }
+            guard ready, self.generation == current else { return }
             // 待った分だけ遅れて鳴り始めるので、時刻をずらして過ぎたものは捨てる
             let waited = requested.duration(to: .now) / .seconds(1)
             let remaining = times.map { $0 - waited }.filter { $0 >= 0 }

@@ -139,6 +139,8 @@ struct ItemListView: View {
                 } else {
                     ForEach(savedLists.lists) { list in
                         Button {
+                            // 置き換える前のリストから消した項目を、読み込んだリストへ戻せないようにする
+                            dismissUndo()
                             onLoad(list.items)
                         } label: {
                             Text(list.name)

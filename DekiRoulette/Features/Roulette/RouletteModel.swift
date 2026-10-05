@@ -20,11 +20,14 @@ final class RouletteModel {
     /// 累積の回転角（度）。View がアニメーションの中で書き込む。
     var rotation: Double = 0
 
+    /// スピン中に針がスライスの境目を越えた回数。境目ごとに触覚を鳴らすトリガで、リセットしない。
+    private(set) var boundaryTick = 0
     /// スピン中にクリック音を鳴らす時刻（開始からの秒）。View が再生に渡す。
     private(set) var clickTimes: [TimeInterval] = []
 
     private var pendingOutcome: SpinOutcome?
     private var fallbackTask: Task<Void, Never>?
+    private var tickTask: Task<Void, Never>?
 
     /// 項目の保存先。nil のときは保存しない（プレビューやテスト向け）。
     private let store: ItemStore?
@@ -70,9 +73,30 @@ final class RouletteModel {
         return accepted.count
     }
 
-    func removeItem(id: UUID) {
-        items.removeAll { $0.id == id }
+    /// 項目を削除し、削除した項目と元の位置を返す。「元に戻す」（`restore`）に使う。
+    @discardableResult
+    func removeItem(id: UUID) -> RemovedItem? {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return nil }
+        let item = items.remove(at: index)
         if targetId == id { targetId = nil }
+        outcome = nil
+        persist()
+        return RemovedItem(item: item, index: index)
+    }
+
+    /// 項目をすべて削除する。指定と結果も消える。
+    func removeAll() {
+        items.removeAll()
+        targetId = nil
+        outcome = nil
+        persist()
+    }
+
+    /// 削除した項目を元の位置に戻す。指定は復元しない。
+    /// 同じ項目がすでにあるとき、上限に達しているときは何もしない。
+    func restore(_ item: Item, at index: Int) {
+        guard !items.contains(where: { $0.id == item.id }), !atCapacity else { return }
+        items.insert(item, at: min(index, items.count))
         outcome = nil
         persist()
     }
@@ -105,7 +129,8 @@ final class RouletteModel {
     /// スピンを開始し、盤面が止まるべき累積回転角を返す。回せないときは nil。
     /// 呼び出し側はこの値を `rotation` にアニメーション付きで反映し、
     /// アニメーション完了時に `finishSpin()` を呼ぶ。
-    func beginSpin(reducedMotion: Bool) -> Double? {
+    /// `fullSpins` を渡すと周回数だけをその値にする（フリックの強さの反映）。止まる位置の決め方は変わらない。
+    func beginSpin(reducedMotion: Bool, fullSpins: Int? = nil) -> Double? {
         guard canSpin else { return nil }
 
         let targetIndex: Int
@@ -116,7 +141,11 @@ final class RouletteModel {
             targetIndex = Int.random(in: 0..<items.count)
         }
 
-        let next = RouletteMath.nextRotation(current: rotation, targetIndex: targetIndex, count: items.count)
+        let next = if let fullSpins {
+            RouletteMath.nextRotation(current: rotation, targetIndex: targetIndex, count: items.count, fullSpins: fullSpins)
+        } else {
+            RouletteMath.nextRotation(current: rotation, targetIndex: targetIndex, count: items.count)
+        }
         pendingOutcome = SpinOutcome(index: targetIndex, label: items[targetIndex].label)
         outcome = nil
         spinning = true
@@ -140,12 +169,27 @@ final class RouletteModel {
             guard !Task.isCancelled else { return }
             self?.finishSpin()
         }
+
+        // 補間中の角度は observable でないので、境目を越える時刻を先に求めて順に刻む。
+        // 動きを減らす設定では回らないので刻まない
+        tickTask?.cancel()
+        let crossings = reducedMotion ? [] : HapticSchedule.boundaryCrossings(
+            from: rotation,
+            to: next,
+            count: items.count,
+            duration: Config.spinDuration,
+            easing: Config.spinEasing,
+            minInterval: Config.hapticMinInterval
+        )
+        tickTask = TickScheduler.run(at: crossings) { [weak self] in self?.boundaryTick += 1 }
         return next
     }
 
     func finishSpin() {
         fallbackTask?.cancel()
         fallbackTask = nil
+        tickTask?.cancel()
+        tickTask = nil
         spinning = false
         guard let pendingOutcome else { return }
         outcome = pendingOutcome

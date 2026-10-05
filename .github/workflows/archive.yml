@@ -1,9 +1,12 @@
 name: Archive
 
+# main は TestFlight へ上げないので、署名と IPA の書き出しが通ることだけをここで確かめる。
+# それ以外のブランチは Build（ビルド + テスト）と、develop / release なら Upload が受け持つ。
 on:
   push:
     branches:
-      - '**'
+      - main
+  workflow_dispatch:
 
 concurrency:
   group: archive-${{ github.ref }}

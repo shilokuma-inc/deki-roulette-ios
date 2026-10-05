@@ -11,7 +11,7 @@
 | branch \ workflow | Build | Archive | Upload |
 |---|---|---|---|
 | main | [![Build](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/build.yml?query=branch%3Amain) | [![Archive](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/archive.yml/badge.svg?branch=main)](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/archive.yml?query=branch%3Amain) | — |
-| develop | [![Build](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/build.yml?query=branch%3Adevelop) | [![Archive](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/archive.yml/badge.svg?branch=develop)](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/archive.yml?query=branch%3Adevelop) | [![Upload](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/upload.yml/badge.svg?branch=develop)](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/upload.yml?query=branch%3Adevelop) |
+| develop | [![Build](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/build.yml?query=branch%3Adevelop) | — | [![Upload](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/upload.yml/badge.svg?branch=develop)](https://github.com/shilokuma-inc/deki-roulette/actions/workflows/upload.yml?query=branch%3Adevelop) |
 
 ## CI
 
@@ -19,9 +19,15 @@ GitHub Actions（`.github/workflows/`）。どのワークフローも最初に 
 
 | ワークフロー | トリガー | 内容 |
 |---|---|---|
-| Build | 全ブランチへの push と PR | シミュレータでビルドしてユニットテストを実行 |
-| Archive | 全ブランチへの push | Release 構成でアーカイブし、App Store Connect API キーで署名して IPA を書き出す |
-| Upload | main 以外への push | Archive に加えて TestFlight へアップロードし、IPA を Artifacts に残す |
+| Build | 全ブランチへの push と Fork からの PR | シミュレータでビルドしてユニットテストを実行 |
+| Archive | `main` への push、手動実行 | Release 構成でアーカイブし、App Store Connect API キーで署名して IPA を書き出す |
+| Upload | `develop` と `release/**` への push、手動実行 | Archive に加えて TestFlight へアップロードし、IPA を Artifacts に残す |
+
+ドキュメントだけの変更（`**/*.md`、`docs/**`）では Build を実行しない（Upload / Archive は実行する）。
+
+作業ブランチで走るのは Build だけ。TestFlight へのアップロードには App Store Connect 側の 24 時間あたりの
+上限（`Upload limit reached (90382)`）があり、作業ブランチまで上げていると枠を使い切るため。
+作業ブランチのビルドを実機で確認したいときは、Upload を手動実行してそのブランチを選ぶ。
 
 ビルド番号 (`CFBundleVersion`) はワークフローの `run_number` で上書きする。Archive / Upload には次の Secrets が必要:
 

@@ -87,7 +87,7 @@ enum Theme {
         sliceAccents[index % sliceAccents.count]
     }
 
-    /// 曲線は `Config.spinEasing` に置き、クリック音の時刻の逆算（`SpinTicks`）と同じ形を共有する。
+    /// 曲線は `Config.spinEasing` に置き、触覚の発火時刻（`HapticSchedule`）とクリック音の時刻（`SpinTicks`）の逆算と同じ形を共有する。
     static let spinAnimation = Animation.timingCurve(
         Config.spinEasing.x1, Config.spinEasing.y1, Config.spinEasing.x2, Config.spinEasing.y2,
         duration: Config.spinDuration
@@ -95,6 +95,47 @@ enum Theme {
 
     /// 結果が現れる演出。両画面で使い回す。
     static let revealAnimation = Animation.timingCurve(0.2, 0.9, 0.3, 1, duration: Config.revealAnimationDuration)
+
+    // MARK: レイアウト
+
+    /// 画面の寸法。Web 版では Tailwind のユーティリティ（`max-w-3xl` / `w-[min(320px,78vw)]`）だったもの。
+    /// 横並び（`horizontalSizeClass == .regular`、主に iPad）では盤面を基準より大きく描く。
+    enum Layout {
+        /// 縦積みでの盤面の上限。ラベルの省略と文字サイズの基準（`WheelLabel.referenceDiameter`）と同じ大きさ。
+        static let wheelMaxWidthCompact = CGFloat(WheelLabel.referenceDiameter)
+        /// 横並びでの盤面の上限。13 インチ iPad の横向きで余白が目立たない大きさ。
+        static let wheelMaxWidthRegular: CGFloat = 480
+        /// 横並びでの項目リストの幅。
+        static let listWidthRegular: CGFloat = 360
+        /// 横並びの 2 列の間隔。縦積みでは上下の間隔に使う。
+        static let columnSpacing: CGFloat = 48
+        /// ページの左右の余白。
+        static let pageHorizontalPadding: CGFloat = 20
+        /// ページ全体の上限。横並びの 2 列 + 間隔 + 左右の余白がちょうど収まる幅。
+        /// compact の端末はこれより狭いので、縦積みの見え方には影響しない。
+        static let pageMaxWidth = wheelMaxWidthRegular + columnSpacing + listWidthRegular + pageHorizontalPadding * 2
+    }
+
+    // MARK: 停止の強調
+
+    // 止まった瞬間に針の下のスライスだけを短く押し出し、他のスライスを少し沈める。
+    // 専用色は使わず、`onSlice` を薄く重ねて暗くするだけにする。
+
+    /// 止まっていないスライスに重ねて暗くする色。ラベルが `onSlice` で読める範囲に留める。
+    static let sliceDim = onSlice.opacity(0.16)
+    /// 止まったスライスを押し出す倍率。
+    static let stopPulseScale: CGFloat = 1.04
+    /// 停止の瞬間に針が沈む量（pt）。
+    static let pointerBounceOffset: CGFloat = 4
+    /// 押し出し・沈み込みの行き。
+    static let stopPulseAnimation = Animation.easeOut(duration: 0.14)
+    /// 押し出し・沈み込みの戻り。少し弾ませる。
+    static let stopSettleAnimation = Animation.spring(duration: 0.4, bounce: 0.35)
+    /// 他のスライスが暗くなる／戻るときの変化。
+    static let stopDimAnimation = Animation.easeOut(duration: 0.25)
+
+    /// 削除を元に戻すトーストの出入り。
+    static let undoToastAnimation = Animation.easeOut(duration: 0.2)
 }
 
 extension Color {

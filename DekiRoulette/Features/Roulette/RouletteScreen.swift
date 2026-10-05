@@ -4,6 +4,7 @@ struct RouletteScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var typeSize
+    @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
     @AppStorage(Config.soundEnabledKey) private var soundEnabled = true
     let model: RouletteModel
     @State private var sound = SpinSoundPlayer()
@@ -21,7 +22,7 @@ struct RouletteScreen: View {
             Text(L10n.helpAimStealth)
             Text(L10n.helpAimRandom)
         } content: {
-            AdaptiveStack(horizontal: sizeClass == .regular, spacing: 48) {
+            AdaptiveStack(horizontal: regular, alignment: .center, spacing: Theme.Layout.columnSpacing) {
                 wheelSection
                 ItemListView(
                     items: model.items,
@@ -31,9 +32,12 @@ struct RouletteScreen: View {
                     atCapacity: model.atCapacity,
                     onAdd: { model.addItems($0) },
                     onRemove: { model.removeItem(id: $0) },
-                    onLongPress: { model.toggleTarget(id: $0) }
+                    onRemoveAll: { model.removeAll() },
+                    onRestore: { model.restore($0, at: $1) },
+                    onLongPress: { model.toggleTarget(id: $0) },
+                    onLoad: { model.replaceItems($0) }
                 )
-                .frame(maxWidth: sizeClass == .regular ? 320 : .infinity)
+                .frame(maxWidth: regular ? Theme.Layout.listWidthRegular : .infinity)
             }
         }
         .onChange(of: model.result) { _, result in
@@ -41,14 +45,32 @@ struct RouletteScreen: View {
                 AccessibilityNotification.Announcement(L10n.resultAnnounce(result)).post()
             }
         }
+        // 触覚: 開始の手応え、境目ごとの刻み、止まった手応え。設定で OFF にできる
+        .sensoryFeedback(trigger: model.spinning) { _, spinning in
+            hapticsEnabled && spinning ? .impact(weight: Config.hapticSpinStartWeight) : nil
+        }
+        .sensoryFeedback(trigger: model.boundaryTick) { _, _ in
+            hapticsEnabled ? .selection : nil
+        }
+        .sensoryFeedback(trigger: model.outcome) { _, outcome in
+            hapticsEnabled && outcome != nil ? .success : nil
+        }
         .onAppear { if soundEnabled { sound.prepare() } }
         .onDisappear { sound.stop() }
     }
 
+    private var regular: Bool { sizeClass == .regular }
+
     private var wheelSection: some View {
         VStack(spacing: 24) {
-            RouletteWheelView(items: model.items, rotation: model.rotation)
-                .frame(maxWidth: 320)
+            RouletteWheelView(
+                items: model.items,
+                rotation: model.rotation,
+                // 結果が出ている間だけ止まったスライスを強調する。項目を触って結果が消えれば強調も解ける
+                highlightedIndex: model.outcome?.index,
+                onFlick: flick
+            )
+            .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
 
             // 結果の有無で下のボタンが動かないよう高さを固定する。大きい文字では枠からはみ出るので最小高さだけ残す
             resultStatus
@@ -96,7 +118,17 @@ struct RouletteScreen: View {
     }
 
     private func spin() {
-        guard let next = model.beginSpin(reducedMotion: reduceMotion) else { return }
+        spin(fullSpins: nil)
+    }
+
+    /// 盤面のフリック。閾値未満の弱いドラッグでは何もしない。強さは周回数にだけ反映する。
+    private func flick(angularVelocity: Double) {
+        guard let fullSpins = FlickSpin.fullSpins(angularVelocity: angularVelocity) else { return }
+        spin(fullSpins: fullSpins)
+    }
+
+    private func spin(fullSpins: Int?) {
+        guard let next = model.beginSpin(reducedMotion: reduceMotion, fullSpins: fullSpins) else { return }
         if soundEnabled { sound.play(at: model.clickTimes) }
         if reduceMotion {
             // 動きを減らす設定では回さずに止まる。終了は保険のタイマーが担う
@@ -113,6 +145,7 @@ struct RouletteScreen: View {
 
 #Preview {
     RouletteScreen(model: RouletteModel(items: ItemLabel.makeItems(L10n.defaultItems)))
+        .environment(SavedListsModel(lists: []))
 }
 
 #Preview("AX5") {

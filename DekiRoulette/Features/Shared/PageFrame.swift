@@ -26,9 +26,9 @@ struct PageFrame<Content: View, Help: View>: View {
                 footer
                     .padding(.top, 56)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Theme.Layout.pageHorizontalPadding)
             .padding(.vertical, 24)
-            .frame(maxWidth: 768)
+            .frame(maxWidth: Theme.Layout.pageMaxWidth)
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)

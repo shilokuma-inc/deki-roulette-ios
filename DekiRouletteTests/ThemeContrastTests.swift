@@ -51,6 +51,15 @@ struct ThemeContrastTests {
         #expect(ratio(Theme.onFlare, on: Theme.flare, style) >= 4.5)
     }
 
+    @Test(arguments: styles)
+    func 沈めたスライスでもラベルは4_5対1以上(style: UIUserInterfaceStyle) {
+        for index in 0..<Theme.sliceColors.count {
+            let dimmed = composite(resolve(Theme.sliceDim, style), over: resolve(Theme.sliceColor(at: index), style))
+            let ink = luminance(resolve(Theme.onSlice, style))
+            #expect((luminance(dimmed) + 0.05) / (ink + 0.05) >= 4.5)
+        }
+    }
+
     // MARK: 盤面は外観に依らない
 
     @Test func 盤面の色は外観設定で変わらない() {
@@ -79,6 +88,20 @@ struct ThemeContrastTests {
         let back = luminance(resolve(background, style))
         let (high, low) = front > back ? (front, back) : (back, front)
         return (high + 0.05) / (low + 0.05)
+    }
+
+    /// 半透明の `top` を不透明な `bottom` に重ねたときの見た目の色（sRGB の線形補間）。
+    private func composite(_ top: UIColor, over bottom: UIColor) -> UIColor {
+        var tr: CGFloat = 0, tg: CGFloat = 0, tb: CGFloat = 0, ta: CGFloat = 0
+        var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
+        top.getRed(&tr, green: &tg, blue: &tb, alpha: &ta)
+        bottom.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
+        return UIColor(
+            red: tr * ta + br * (1 - ta),
+            green: tg * ta + bg * (1 - ta),
+            blue: tb * ta + bb * (1 - ta),
+            alpha: 1
+        )
     }
 
     private func luminance(_ color: UIColor) -> Double {

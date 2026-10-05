@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// ヘッダ右上のアイコンから開く設定。効果音の切り替えと項目の初期化、著作権の項目を置く。
+/// ヘッダ右上のアイコンから開く設定。触覚フィードバックと効果音の切替、項目の初期化、著作権の項目を置く。
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
     @AppStorage(Config.soundEnabledKey) private var soundEnabled = true
     // 両画面のモデルは RootView が environment に流している。どちらのタブから開いても両方を戻せる。
     @Environment(RouletteModel.self) private var rouletteModel
@@ -22,6 +23,9 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    // 文言はこの見出しだけ。何に使うかの説明は置かない（長押しの存在を示唆しないため）
+                    SettingsToggle(title: L10n.hapticsTitle, isOn: $hapticsEnabled)
+
                     SettingsSection(title: L10n.soundTitle) {
                         Toggle(L10n.soundToggle, isOn: $soundEnabled)
                             .font(.subheadline)
@@ -112,6 +116,27 @@ struct SettingsView: View {
         switch target {
         case .roulette: rouletteModel.resetItems()
         case .order: orderModel.resetItems()
+        }
+    }
+}
+
+/// 設定の ON/OFF 1 項目。枠の中に見出しとスイッチを並べる。
+private struct SettingsToggle: View {
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            Text(title)
+                .font(.callout.weight(.bold))
+                .foregroundStyle(Theme.ivory)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background(Theme.ink800, in: .rect(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Theme.ink700, lineWidth: 1)
         }
     }
 }

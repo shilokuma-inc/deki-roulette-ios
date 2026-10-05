@@ -46,8 +46,14 @@ struct RouletteScreen: View {
 
     private var wheelSection: some View {
         VStack(spacing: 24) {
-            RouletteWheelView(items: model.items, rotation: model.rotation)
-                .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
+            RouletteWheelView(
+                items: model.items,
+                rotation: model.rotation,
+                // 結果が出ている間だけ止まったスライスを強調する。項目を触って結果が消えれば強調も解ける
+                highlightedIndex: model.outcome?.index,
+                onFlick: flick
+            )
+            .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
 
             // 結果の有無で下のボタンが動かないよう高さを固定する。大きい文字では枠からはみ出るので最小高さだけ残す
             resultStatus
@@ -95,7 +101,17 @@ struct RouletteScreen: View {
     }
 
     private func spin() {
-        guard let next = model.beginSpin(reducedMotion: reduceMotion) else { return }
+        spin(fullSpins: nil)
+    }
+
+    /// 盤面のフリック。閾値未満の弱いドラッグでは何もしない。強さは周回数にだけ反映する。
+    private func flick(angularVelocity: Double) {
+        guard let fullSpins = FlickSpin.fullSpins(angularVelocity: angularVelocity) else { return }
+        spin(fullSpins: fullSpins)
+    }
+
+    private func spin(fullSpins: Int?) {
+        guard let next = model.beginSpin(reducedMotion: reduceMotion, fullSpins: fullSpins) else { return }
         if reduceMotion {
             // 動きを減らす設定では回さずに止まる。終了は保険のタイマーが担う
             model.rotation = next

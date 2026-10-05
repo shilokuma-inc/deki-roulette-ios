@@ -123,6 +123,20 @@ struct RouletteModelTests {
         #expect(model.outcome == SpinOutcome(index: 2, label: "A"))
     }
 
+    @Test func フリックの周回数を渡しても結果は針の下の項目と一致する() throws {
+        for spins in Config.fullSpinRange {
+            let model = makeModel()
+            model.toggleTarget(id: model.items[1].id)
+            let before = model.rotation
+            let next = try #require(model.beginSpin(reducedMotion: false, fullSpins: spins))
+            #expect(next - before >= Double(spins) * 360 + 10)
+            #expect(next - before < Double(spins) * 360 + 370)
+            model.rotation = next
+            model.finishSpin()
+            #expect(model.outcome == SpinOutcome(index: 1, label: "B"))
+        }
+    }
+
     @Test func 項目を触ると結果が消える() {
         let model = makeModel()
         model.rotation = model.beginSpin(reducedMotion: false)!

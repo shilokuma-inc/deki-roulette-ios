@@ -16,7 +16,25 @@ enum RouletteMath {
         count: Int,
         using rng: inout G
     ) -> Double {
-        precondition(count > 0 && (0..<count).contains(targetIndex))
+        let fullSpins = Int.random(in: Config.fullSpinRange, using: &rng)
+        return nextRotation(current: current, targetIndex: targetIndex, count: count, fullSpins: fullSpins, using: &rng)
+    }
+
+    static func nextRotation(current: Double, targetIndex: Int, count: Int, fullSpins: Int) -> Double {
+        var rng = SystemRandomNumberGenerator()
+        return nextRotation(current: current, targetIndex: targetIndex, count: count, fullSpins: fullSpins, using: &rng)
+    }
+
+    /// 周回数を外から与える版。フリックの強さを周回数にだけ反映するために使う。
+    /// スライス内の停止位置の決め方は乱数のまま変えない。
+    static func nextRotation<G: RandomNumberGenerator>(
+        current: Double,
+        targetIndex: Int,
+        count: Int,
+        fullSpins: Int,
+        using rng: inout G
+    ) -> Double {
+        precondition(count > 0 && (0..<count).contains(targetIndex) && fullSpins >= 0)
         let sliceAngle = 360.0 / Double(count)
         let rawAngle = Double(targetIndex) * sliceAngle + Double.random(in: 0..<1, using: &rng) * sliceAngle
         let desiredMod = positiveMod(360 - rawAngle)
@@ -25,8 +43,7 @@ enum RouletteMath {
         // 止まる位置がほぼ同じだと回った感じが出ないので、1 周足す
         if delta < 10 { delta += 360 }
 
-        let fullSpins = Double(Int.random(in: 4...8, using: &rng))
-        return current + fullSpins * 360 + delta
+        return current + Double(fullSpins) * 360 + delta
     }
 
     /// 回転角 `rotation` のとき針の下にあるスライスの添字。

@@ -102,7 +102,8 @@ final class RouletteModel {
     /// スピンを開始し、盤面が止まるべき累積回転角を返す。回せないときは nil。
     /// 呼び出し側はこの値を `rotation` にアニメーション付きで反映し、
     /// アニメーション完了時に `finishSpin()` を呼ぶ。
-    func beginSpin(reducedMotion: Bool) -> Double? {
+    /// `fullSpins` を渡すと周回数だけをその値にする（フリックの強さの反映）。止まる位置の決め方は変わらない。
+    func beginSpin(reducedMotion: Bool, fullSpins: Int? = nil) -> Double? {
         guard canSpin else { return nil }
 
         let targetIndex: Int
@@ -113,7 +114,11 @@ final class RouletteModel {
             targetIndex = Int.random(in: 0..<items.count)
         }
 
-        let next = RouletteMath.nextRotation(current: rotation, targetIndex: targetIndex, count: items.count)
+        let next = if let fullSpins {
+            RouletteMath.nextRotation(current: rotation, targetIndex: targetIndex, count: items.count, fullSpins: fullSpins)
+        } else {
+            RouletteMath.nextRotation(current: rotation, targetIndex: targetIndex, count: items.count)
+        }
         pendingOutcome = SpinOutcome(index: targetIndex, label: items[targetIndex].label)
         outcome = nil
         spinning = true

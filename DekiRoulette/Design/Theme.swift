@@ -111,6 +111,24 @@ enum Theme {
         /// compact の端末はこれより狭いので、縦積みの見え方には影響しない。
         static let pageMaxWidth = wheelMaxWidthRegular + columnSpacing + listWidthRegular + pageHorizontalPadding * 2
     }
+
+    // MARK: 停止の強調
+
+    // 止まった瞬間に針の下のスライスだけを短く押し出し、他のスライスを少し沈める。
+    // 専用色は使わず、`onSlice` を薄く重ねて暗くするだけにする。
+
+    /// 止まっていないスライスに重ねて暗くする色。ラベルが `onSlice` で読める範囲に留める。
+    static let sliceDim = onSlice.opacity(0.16)
+    /// 止まったスライスを押し出す倍率。
+    static let stopPulseScale: CGFloat = 1.04
+    /// 停止の瞬間に針が沈む量（pt）。
+    static let pointerBounceOffset: CGFloat = 4
+    /// 押し出し・沈み込みの行き。
+    static let stopPulseAnimation = Animation.easeOut(duration: 0.14)
+    /// 押し出し・沈み込みの戻り。少し弾ませる。
+    static let stopSettleAnimation = Animation.spring(duration: 0.4, bounce: 0.35)
+    /// 他のスライスが暗くなる／戻るときの変化。
+    static let stopDimAnimation = Animation.easeOut(duration: 0.25)
 }
 
 extension Color {

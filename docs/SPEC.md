@@ -166,6 +166,7 @@ Web 版には無い。用途ごとの項目リスト（ランチの候補、チ�
 - 回転は CSS `transform: rotate()` のトランジション（4.5 秒、`SPIN_EASING`）。累積角を使うので常に同じ方向（時計回り）に回る。
 - 完了は `transitionend` で検知する。バックグラウンドタブ等で発火しないときは 5.1 秒のタイマーで打ち切る。
 - 結果はスピン開始時に確定しており（`pendingResult`）、完了時に表示する。
+- iOS 版は盤面のフリックでも開始できる。フリックの強さは手順 5 の周回数にだけ反映し、止まる位置の計算は変えない（§12）。
 
 ### 5.3 結果表示
 
@@ -184,6 +185,7 @@ Web 版には無い。用途ごとの項目リスト（ランチの候補、チ�
     デキレーレット
     ```
   - スピン中と結果が無いときはどちらも出さない。
+- iOS 版は結果ラベルに加えて、盤面上でも針の下のスライスを強調する。結果が消えると強調も解ける（§12）。
 
 ### 5.4 当たり指定
 
@@ -453,3 +455,5 @@ iOS 版には対応物が無い、または OS が代替する項目。
 | ブラウザの文字サイズ設定（固定 px のレイアウト） | Dynamic Type に追従（§10） | しきい値の判定は `TypeLayout`（`accessibility1` 以上でラベル 2 行・固定高さを緩める）。追加フォームは `ViewThatFits` で入力欄の最小幅（`@ScaledMetric` 160pt）を確保できなければ縦積み。盤面は追従させず、印の大きさも変えない |
 | 盤面 320px、ページ幅 `max-w-3xl`（768px）、`lg` 以上で横並び（§5.1, §9.3） | `horizontalSizeClass == .regular` で横並び。盤面は最大 480pt、項目リストは 360pt、ページ幅は 928pt（`Theme.Layout`）。compact では盤面 320pt のまま | 盤面の線幅・縁・ハブは直径に比例。ラベルは基準 320pt より大きい盤面で、倍率の平方根ずつ文字サイズと最大表示文字数を増やす（`WheelLabel`。480pt では 12 / 8 / 6 文字）。文字サイズも比例させると文字数を増やした分が縁からはみ出すため。横並びの 2 列は上下中央で揃える。iPhone の横向きは非対応のまま（`UISupportedInterfaceOrientations`）。Split View や Stage Manager で幅が狭まると compact の縦積みになる |
 | 画面キャプチャの考慮は無い | 画面がキャプチャされている間は印を伏せる（§6.3 の条件 3） | `UIScreen.isCaptured` と `UIScreen.capturedDidChangeNotification` で判定する。状態は `ScreenCaptureMonitor`（`@Observable`）が持ち、`Environment` で両画面の `ItemListView` に届く。取得元は `ScreenCaptureSource` プロトコルで差し替え可能（`UIScreen.main` は使わず接続中のシーンの画面を読む）。印を出す判定は `MarkVisibility.reveals`。「使い方」の隠し操作の説明に「画面を共有・収録している間は出ない」旨を足しており、本文には表示しない |
+| スピンの開始は「スピン」ボタンのみ（§5.2） | ボタンに加えて盤面のフリックでも開始できる | 指を離した時点の角速度（`FlickSpin.angularVelocity`。盤面中心から `flickDeadZoneRadius` 以内は無視）が `Config.flickMinAngularVelocity` 以上なら開始する。強さは周回数（`Config.fullSpinRange`）にだけ写し（`FlickSpin.fullSpins`、`flickMaxAngularVelocity` で上限）、止まる位置の式と `pendingOutcome` の仕組みは変えない。フリックの向きは問わず常に時計回りに回る。閾値未満のドラッグでは盤面を動かさない（追従させると止まった位置と結果の対応がずれて見える）。盤面上のドラッグはページのスクロールより優先する。盤面は `accessibilityHidden` のままで、VoiceOver と動きを減らす設定の利用者はボタンで操作する |
+| 停止後の強調は結果ラベルのみ（§5.3） | 針の下のスライスを盤面上でも強調する | 結果が出ている間、止まったスライス以外に `onSlice` を薄く重ねて沈める（`Theme.sliceDim`。沈めた上でもラベルは 4.5:1 を保つ）。停止の瞬間だけそのスライスを 1.04 倍に押し出し、針を 4pt 沈めてから弾ませて戻す。項目の追加・削除・指定の変更で結果が消えると強調も解ける。`accessibilityReduceMotion` では押し出しと針の跳ねを省き、沈めるだけにする。`gold` / `flare` は使わない |

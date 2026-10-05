@@ -383,6 +383,7 @@ Web 版には無い。用途ごとの項目リスト（ランチの候補、チ�
 - 削除ボタンに「{ラベル} を削除」の読み上げ名。
 - フォーカスリングは `gold` 2px。
 - 指定中の行は、印が見えているときだけ `aria-pressed="true"` と先頭／末尾のテキストを付ける（§6.3）。
+- iOS 版は触覚フィードバックを持つ（§12）。`accessibilityReduceMotion` のときはスピン中と順番決めの連続的な触覚を鳴らさず、開始と結果だけにする。
 
 iOS 版は Dynamic Type（文字サイズ）にも追従する（Web 版はブラウザの文字サイズ設定に依る）。詳細は §12。
 
@@ -465,3 +466,4 @@ iOS 版には対応物が無い、または OS が代替する項目。
 | スピンの開始は「スピン」ボタンのみ（§5.2） | ボタンに加えて盤面のフリックでも開始できる | 指を離した時点の角速度（`FlickSpin.angularVelocity`。盤面中心から `flickDeadZoneRadius` 以内は無視）が `Config.flickMinAngularVelocity` 以上なら開始する。強さは周回数（`Config.fullSpinRange`）にだけ写し（`FlickSpin.fullSpins`、`flickMaxAngularVelocity` で上限）、止まる位置の式と `pendingOutcome` の仕組みは変えない。フリックの向きは問わず常に時計回りに回る。閾値未満のドラッグでは盤面を動かさない（追従させると止まった位置と結果の対応がずれて見える）。盤面上のドラッグはページのスクロールより優先する。盤面は `accessibilityHidden` のままで、VoiceOver と動きを減らす設定の利用者はボタンで操作する |
 | 停止後の強調は結果ラベルのみ（§5.3） | 針の下のスライスを盤面上でも強調する | 結果が出ている間、止まったスライス以外に `onSlice` を薄く重ねて沈める（`Theme.sliceDim`。沈めた上でもラベルは 4.5:1 を保つ）。停止の瞬間だけそのスライスを 1.04 倍に押し出し、針を 4pt 沈めてから弾ませて戻す。項目の追加・削除・指定の変更で結果が消えると強調も解ける。`accessibilityReduceMotion` では押し出しと針の跳ねを省き、沈めるだけにする。`gold` / `flare` は使わない |
 | 削除は「✕」のみで取り消せない | 見出し行の「すべて削除」（`confirmationDialog`）と、「✕」直後 `UNDO_MS` = 5000 ms の「元に戻す」トースト（§4.3） | `removeItem` が削除した項目と位置（`RemovedItem`）を返し、View がトーストの状態を持つ。`restore(_:at:)` は指定を復元しない。演出開始でトーストは閉じる。トーストは `AccessibilityNotification.Announcement` で読み上げる |
+| 触覚フィードバックは無し | スピン開始 `.impact(.medium)`、スピン中は針が境目を越えるたび `.selection`、停止・結果表示 `.success`。順番決めは行が 1 件現れるごと `.selection`、全件そろって `.success`。長押しで指定が切り替わった瞬間 `.impact(.light)` | iOS 17 の `sensoryFeedback(_:trigger:)`。回転は `withAnimation` で最終値まで一気に書き込まれ補間中の角度は observable でないため、開始角・終了角・`SPIN_EASING`（`CubicBezierCurve`）から境目を越える時刻の列を `HapticSchedule.boundaryCrossings` で先に求め、`Config.hapticMinInterval`（60ms）未満の間隔は間引いて `TickScheduler` の `Task` で順に刻む。終盤は減速に合わせて間隔が開く。スピンの完了・中断でタスクはキャンセル。`accessibilityReduceMotion` では境目の刻みと 1 件ごとの刻みを省き、開始と結果だけ鳴らす。設定シート先頭の「触覚フィードバック」スイッチで OFF にでき、`UserDefaults`（`hapticsEnabled`、未設定は ON）に保存する。文言はこの見出しだけで、長押しに触れる説明は置かない。長押しの触覚は本人の指にしか伝わらないので見た目には何も足さない。音は出さない |

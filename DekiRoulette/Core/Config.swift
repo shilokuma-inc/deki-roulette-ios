@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// ドメイン定数。Web 版 `src/config.ts` に対応する。
 enum Config {
@@ -51,4 +52,21 @@ enum Config {
 
     /// 削除した項目を「元に戻す」で戻せる時間。過ぎると削除が確定する。
     static let undoDuration: TimeInterval = 5
+
+    /// スピンのイージング（Web 版 `SPIN_EASING`）。`Theme.spinAnimation` と、触覚の発火時刻の逆算の両方で使う。
+    static let spinEasing = CubicBezierCurve(0.15, 0.85, 0.3, 1)
+
+    // MARK: 触覚
+
+    /// 触覚フィードバックの ON/OFF を保存する `UserDefaults` のキー。未設定なら ON。
+    static let hapticsEnabledKey = "hapticsEnabled"
+
+    /// スピン開始の手応え。
+    static let hapticSpinStartWeight: SensoryFeedback.Weight = .medium
+
+    /// 長押しで指定が切り替わった瞬間の、本人の指にだけ伝わる軽い手応え。
+    static let hapticMarkToggleWeight: SensoryFeedback.Weight = .light
+
+    /// スピン中に境目を越える触覚を鳴らす最短間隔。序盤は境目を越える間隔がこれより短いので間引く。
+    static let hapticMinInterval: TimeInterval = 0.06
 }

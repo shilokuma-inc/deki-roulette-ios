@@ -5,6 +5,7 @@ struct OrderScreen: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var typeSize
     let model: OrderModel
+    @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
 
     var body: some View {
         PageFrame(
@@ -36,6 +37,13 @@ struct OrderScreen: View {
                 )
                 .frame(maxWidth: regular ? Theme.Layout.listWidthRegular : .infinity)
             }
+        }
+        // 触覚: 行が 1 件現れるごとの刻みと、全件そろった手応え。設定で OFF にできる
+        .sensoryFeedback(trigger: model.revealTick) { _, _ in
+            hapticsEnabled ? .selection : nil
+        }
+        .sensoryFeedback(trigger: model.revealing) { wasRevealing, revealing in
+            hapticsEnabled && wasRevealing && !revealing ? .success : nil
         }
     }
 

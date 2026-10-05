@@ -20,8 +20,12 @@ final class RouletteModel {
     /// 累積の回転角（度）。View がアニメーションの中で書き込む。
     var rotation: Double = 0
 
+    /// スピン中に針がスライスの境目を越えた回数。境目ごとに触覚を鳴らすトリガで、リセットしない。
+    private(set) var boundaryTick = 0
+
     private var pendingOutcome: SpinOutcome?
     private var fallbackTask: Task<Void, Never>?
+    private var tickTask: Task<Void, Never>?
 
     /// 項目の保存先。nil のときは保存しない（プレビューやテスト向け）。
     private let store: ItemStore?
@@ -152,12 +156,27 @@ final class RouletteModel {
             guard !Task.isCancelled else { return }
             self?.finishSpin()
         }
+
+        // 補間中の角度は observable でないので、境目を越える時刻を先に求めて順に刻む。
+        // 動きを減らす設定では回らないので刻まない
+        tickTask?.cancel()
+        let crossings = reducedMotion ? [] : HapticSchedule.boundaryCrossings(
+            from: rotation,
+            to: next,
+            count: items.count,
+            duration: Config.spinDuration,
+            easing: Config.spinEasing,
+            minInterval: Config.hapticMinInterval
+        )
+        tickTask = TickScheduler.run(at: crossings) { [weak self] in self?.boundaryTick += 1 }
         return next
     }
 
     func finishSpin() {
         fallbackTask?.cancel()
         fallbackTask = nil
+        tickTask?.cancel()
+        tickTask = nil
         spinning = false
         guard let pendingOutcome else { return }
         outcome = pendingOutcome

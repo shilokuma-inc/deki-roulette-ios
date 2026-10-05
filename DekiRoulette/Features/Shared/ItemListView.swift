@@ -33,6 +33,8 @@ struct ItemListView: View {
     @State private var listName = ""
     @State private var listsFull = false
     @State private var managingLists = false
+    @State private var markToggleCount = 0
+    @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
     @FocusState private var inputFocused: Bool
     /// 画面収録・ミラーリング中は相手側にも印が映るので伏せる。無ければ（Preview 等）キャプチャ無しとみなす。
     @Environment(ScreenCaptureMonitor.self) private var screenCapture: ScreenCaptureMonitor?
@@ -102,6 +104,10 @@ struct ItemListView: View {
                 onRemoveAll()
             }
             Button(L10n.cancel, role: .cancel) {}
+        }
+        // 指定が切り替わった瞬間の軽い手応え。本人の指にしか伝わらないので見た目には何も足さない
+        .sensoryFeedback(trigger: markToggleCount) { _, _ in
+            hapticsEnabled ? .impact(weight: Config.hapticMarkToggleWeight) : nil
         }
     }
 
@@ -350,6 +356,7 @@ struct ItemListView: View {
 
     private func handleLongPress(_ id: UUID) {
         onLongPress(id)
+        markToggleCount += 1
         hinting = true
         hintTask?.cancel()
         hintTask = Task {

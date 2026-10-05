@@ -140,6 +140,21 @@ struct OrderModelTests {
         #expect(model.canShuffle)
     }
 
+    @Test func 結果の行が現れるごとに刻まれる() async throws {
+        let model = makeModel()
+        model.shuffleItems(reducedMotion: false)
+        try await Task.sleep(for: .seconds(RevealTiming.duration(count: 4, reducedMotion: false) + 0.3))
+        #expect(model.revealTick == 4)
+        #expect(!model.revealing)
+    }
+
+    @Test func 動きを減らす設定では1件ごとに刻まない() async throws {
+        let model = makeModel()
+        model.shuffleItems(reducedMotion: true)
+        try await Task.sleep(for: .seconds(Config.reducedMotionRevealDuration + 0.3))
+        #expect(model.revealTick == 0)
+    }
+
     @Test func 項目を触ると結果が消える() {
         let model = makeModel()
         model.shuffleItems(reducedMotion: true)

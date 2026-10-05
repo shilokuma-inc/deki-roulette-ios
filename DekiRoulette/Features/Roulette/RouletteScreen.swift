@@ -5,6 +5,7 @@ struct RouletteScreen: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var typeSize
     let model: RouletteModel
+    @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
 
     var body: some View {
         PageFrame(
@@ -41,6 +42,16 @@ struct RouletteScreen: View {
             if let result {
                 AccessibilityNotification.Announcement(L10n.resultAnnounce(result)).post()
             }
+        }
+        // 触覚: 開始の手応え、境目ごとの刻み、止まった手応え。設定で OFF にできる
+        .sensoryFeedback(trigger: model.spinning) { _, spinning in
+            hapticsEnabled && spinning ? .impact(weight: Config.hapticSpinStartWeight) : nil
+        }
+        .sensoryFeedback(trigger: model.boundaryTick) { _, _ in
+            hapticsEnabled ? .selection : nil
+        }
+        .sensoryFeedback(trigger: model.outcome) { _, outcome in
+            hapticsEnabled && outcome != nil ? .success : nil
         }
     }
 

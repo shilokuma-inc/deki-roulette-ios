@@ -205,6 +205,36 @@ struct RouletteModelTests {
         }
     }
 
+    @Test func 境目を越えるたびに刻まれる() async throws {
+        let model = makeModel()
+        let from = model.rotation
+        let next = try #require(model.beginSpin(reducedMotion: false))
+        let expected = HapticSchedule.boundaryCrossings(
+            from: from, to: next, count: 4, duration: Config.spinDuration,
+            easing: Config.spinEasing, minInterval: Config.hapticMinInterval
+        )
+        #expect(!expected.isEmpty)
+        #expect(model.boundaryTick == 0)
+        try await Task.sleep(for: .seconds(Config.spinDuration + 0.3))
+        #expect(model.boundaryTick == expected.count)
+    }
+
+    @Test func 動きを減らす設定では境目を刻まない() async throws {
+        let model = makeModel()
+        #expect(model.beginSpin(reducedMotion: true) != nil)
+        try await Task.sleep(for: .seconds(Config.reducedMotionSpinDuration + 0.3))
+        #expect(model.boundaryTick == 0)
+        #expect(model.result != nil)
+    }
+
+    @Test func スピンが終わると刻みも止まる() async throws {
+        let model = makeModel()
+        model.rotation = model.beginSpin(reducedMotion: false)!
+        model.finishSpin()
+        try await Task.sleep(for: .seconds(0.5))
+        #expect(model.boundaryTick == 0)
+    }
+
     @Test func 項目を触ると結果が消える() {
         let model = makeModel()
         model.rotation = model.beginSpin(reducedMotion: false)!

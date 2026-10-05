@@ -8,28 +8,61 @@ final class SpinSoundPlayer {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private var click: (samples: [Float], format: AVAudioFormat)?
+    /// セッションを `.ambient` にして有効化する処理。成功したかを返す。
+    /// 終わる前にエンジンを起動すると既定のカテゴリで有効化され、他のアプリの音を止めてしまう。
+    private var sessionSetup: Task<Bool, Never>?
+    /// `stop()` や次の `play(at:)` のあとに、待っていた古い再生が始まらないようにする。
+    private var generation = 0
 
     /// 素材の読み込みとオーディオの準備。画面が出たところで呼んでおく。
-    /// セッションの有効化はメインスレッドで待つと UI が固まるので、鳴らす前に別スレッドで終わらせておく。
+    /// セッションの有効化はメインスレッドで待つと UI が固まるので、別スレッドで行い `play(at:)` はその完了を待つ。
     func prepare() {
         guard click == nil, let loaded = loadClick() else { return }
         click = loaded
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: loaded.format)
 
-        Task.detached(priority: .utility) {
+        sessionSetup = Task.detached(priority: .utility) {
             let session = AVAudioSession.sharedInstance()
-            // 消音（マナー）スイッチに従い、他のアプリで鳴っている音も止めない
-            try? session.setCategory(.ambient, mode: .default)
-            try? session.setActive(true)
+            do {
+                // 消音（マナー）スイッチに従い、他のアプリで鳴っている音も止めない
+                try session.setCategory(.ambient, mode: .default)
+                try session.setActive(true)
+                return true
+            } catch {
+                return false
+            }
         }
     }
 
     /// `times`（スピン開始からの秒）にクリック音を鳴らす。呼んだ時点が 0 秒。
     func play(at times: [TimeInterval]) {
         prepare()
-        guard !times.isEmpty, let click else { return }
+        guard !times.isEmpty, let click, let sessionSetup else { return }
 
+        generation += 1
+        let current = generation
+        let requested = ContinuousClock.now
+        Task { [weak self] in
+            // セッションの準備が済むまでエンジンは起動しない。失敗していれば鳴らさない
+            guard await sessionSetup.value, let self, self.generation == current else { return }
+            // 待った分だけ遅れて鳴り始めるので、時刻をずらして過ぎたものは捨てる
+            let waited = requested.duration(to: .now) / .seconds(1)
+            let remaining = times.map { $0 - waited }.filter { $0 >= 0 }
+            self.start(remaining, click: click)
+        }
+    }
+
+    /// 画面から離れるときなど、鳴らしている途中で止める。
+    func stop() {
+        guard click != nil else { return }
+        generation += 1
+        player.stop()
+        engine.stop()
+    }
+
+    private func start(_ times: [TimeInterval], click: (samples: [Float], format: AVAudioFormat)) {
+        guard !times.isEmpty else { return }
         let track = ClickTrack.render(
             click: click.samples,
             sampleRate: click.format.sampleRate,
@@ -43,13 +76,6 @@ final class SpinSoundPlayer {
         player.stop()
         player.scheduleBuffer(buffer, at: nil)
         player.play()
-    }
-
-    /// 画面から離れるときなど、鳴らしている途中で止める。
-    func stop() {
-        guard click != nil else { return }
-        player.stop()
-        engine.stop()
     }
 
     private func loadClick() -> (samples: [Float], format: AVAudioFormat)? {

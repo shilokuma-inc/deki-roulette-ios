@@ -117,12 +117,13 @@ func previewTrack(itemCount: Int) -> [Int16] {
 
 let arguments = CommandLine.arguments
 let preview = arguments.count >= 3 && arguments[2] == "--preview"
-guard arguments.count == 2 || (preview && arguments.count <= 4) else {
+let itemCount = arguments.count == 4 ? Int(arguments[3]) ?? previewDefaultItemCount : previewDefaultItemCount
+// 項目数が 0 以下だと境目の数が 0 以下になり、範囲の生成で落ちる
+guard arguments.count == 2 || (preview && arguments.count <= 4 && itemCount > 0) else {
     FileHandle.standardError.write(Data("使い方: swift scripts/make-click-sound.swift <出力先.wav> [--preview [項目数]]\n".utf8))
     exit(1)
 }
 let path = arguments[1]
-let itemCount = arguments.count == 4 ? Int(arguments[3]) ?? previewDefaultItemCount : previewDefaultItemCount
 let output = preview ? previewTrack(itemCount: itemCount) : pcm
 try wav(output, sampleRate: sampleRate).write(to: URL(fileURLWithPath: path))
 print("\(path) に \(output.count) サンプル (\(String(format: "%.2f", Double(output.count) / sampleRate)) 秒) を書き出した")

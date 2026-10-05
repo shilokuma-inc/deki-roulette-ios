@@ -25,7 +25,7 @@ enum Theme {
     /// 補助テキスト。
     static let muted = Color(light: 0x655877, dark: 0xA99BBD)
 
-    /// 順番決めの 1 位とフォーカスリング専用。ルーレットの結果は `sliceAccent(at:)` を使う。
+    /// 順番決めの 1 位とフォーカスリング専用。ルーレットの結果は `sliceAccent(at:count:)` を使う。
     static let gold = Color(light: 0x8A6410, dark: 0xFFC94A)
 
     /// スピン・並べ替えの操作専用。塗りは両モードで同じ色。
@@ -79,12 +79,13 @@ enum Theme {
     /// 文字・色見本・細い枠に使うスライス色。指定中の印にも専用色は使わずこれを流用する。
     static let sliceAccents: [Color] = zip(sliceInks, slicePaints).map { Color(light: $0, dark: $1) }
 
-    static func sliceColor(at index: Int) -> Color {
-        sliceColors[index % sliceColors.count]
+    /// 盤面の塗り・行の色見本・結果表示の枠は、必ず件数つきで引く（継ぎ目の色を `SlicePalette` がずらすため）。
+    static func sliceColor(at index: Int, count: Int) -> Color {
+        sliceColors[SlicePalette.index(at: index, count: count, paletteSize: sliceColors.count)]
     }
 
-    static func sliceAccent(at index: Int) -> Color {
-        sliceAccents[index % sliceAccents.count]
+    static func sliceAccent(at index: Int, count: Int) -> Color {
+        sliceAccents[SlicePalette.index(at: index, count: count, paletteSize: sliceAccents.count)]
     }
 
     /// 曲線は `Config.spinEasing` に置き、触覚の発火時刻（`HapticSchedule`）とクリック音の時刻（`SpinTicks`）の逆算と同じ形を共有する。

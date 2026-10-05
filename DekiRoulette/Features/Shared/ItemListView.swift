@@ -262,7 +262,7 @@ struct ItemListView: View {
                 let mark = marks[item.id]
                 ItemRow(
                     item: item,
-                    color: Theme.sliceAccent(at: index),
+                    color: Theme.sliceAccent(at: index, count: items.count),
                     mark: mark,
                     showMark: revealMarks && mark != nil,
                     busy: busy,

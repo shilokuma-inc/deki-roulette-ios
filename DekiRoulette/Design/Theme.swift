@@ -129,6 +129,9 @@ enum Theme {
     static let stopSettleAnimation = Animation.spring(duration: 0.4, bounce: 0.35)
     /// 他のスライスが暗くなる／戻るときの変化。
     static let stopDimAnimation = Animation.easeOut(duration: 0.25)
+
+    /// 削除を元に戻すトーストの出入り。
+    static let undoToastAnimation = Animation.easeOut(duration: 0.2)
 }
 
 extension Color {

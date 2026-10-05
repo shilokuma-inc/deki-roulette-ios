@@ -81,6 +81,10 @@ enum L10n {
     static var rename: String { tr("rename") }
     static var delete: String { tr("delete") }
     static func renameListAccessibilityLabel(_ name: String) -> String { fmt("renameListAccessibilityLabel", name) }
+    static var removeAll: String { tr("removeAll") }
+    static var removeAllConfirmTitle: String { tr("removeAllConfirmTitle") }
+    static func removedToast(_ label: String) -> String { fmt("removedToast", label) }
+    static var undo: String { tr("undo") }
 
     static var defaultItems: [String] { lines("defaultItems") }
     static var orderDefaultItems: [String] { lines("orderDefaultItems") }

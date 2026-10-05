@@ -48,4 +48,7 @@ enum Config {
 
     /// 盤面中心からこの半径（pt）の内側では角速度が発散するので、フリックとして扱わない。
     static let flickDeadZoneRadius: Double = 24
+
+    /// 削除した項目を「元に戻す」で戻せる時間。過ぎると削除が確定する。
+    static let undoDuration: TimeInterval = 5
 }

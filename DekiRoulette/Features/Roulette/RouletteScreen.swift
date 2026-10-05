@@ -3,6 +3,7 @@ import SwiftUI
 struct RouletteScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var typeSize
     let model: RouletteModel
 
     var body: some View {
@@ -18,7 +19,7 @@ struct RouletteScreen: View {
             Text(L10n.helpAimStealth)
             Text(L10n.helpAimRandom)
         } content: {
-            AdaptiveStack(horizontal: sizeClass == .regular, spacing: 48) {
+            AdaptiveStack(horizontal: regular, alignment: .center, spacing: Theme.Layout.columnSpacing) {
                 wheelSection
                 ItemListView(
                     items: model.items,
@@ -31,7 +32,7 @@ struct RouletteScreen: View {
                     onLongPress: { model.toggleTarget(id: $0) },
                     onLoad: { model.replaceItems($0) }
                 )
-                .frame(maxWidth: sizeClass == .regular ? 320 : .infinity)
+                .frame(maxWidth: regular ? Theme.Layout.listWidthRegular : .infinity)
             }
         }
         .onChange(of: model.result) { _, result in
@@ -41,13 +42,16 @@ struct RouletteScreen: View {
         }
     }
 
+    private var regular: Bool { sizeClass == .regular }
+
     private var wheelSection: some View {
         VStack(spacing: 24) {
             RouletteWheelView(items: model.items, rotation: model.rotation)
-                .frame(maxWidth: 320)
+                .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
 
+            // 結果の有無で下のボタンが動かないよう高さを固定する。大きい文字では枠からはみ出るので最小高さだけ残す
             resultStatus
-                .frame(height: 56)
+                .frame(minHeight: 56, maxHeight: TypeLayout.growsFixedAreas(for: typeSize) ? nil : 56)
 
             PrimaryActionButton(
                 title: model.spinning ? L10n.spinning : L10n.spin,
@@ -108,4 +112,9 @@ struct RouletteScreen: View {
 #Preview {
     RouletteScreen(model: RouletteModel(items: ItemLabel.makeItems(L10n.defaultItems)))
         .environment(SavedListsModel(lists: []))
+}
+
+#Preview("AX5") {
+    RouletteScreen(model: RouletteModel(items: ItemLabel.makeItems(L10n.defaultItems)))
+        .dynamicTypeSize(.accessibility5)
 }

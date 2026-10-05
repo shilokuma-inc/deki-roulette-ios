@@ -7,6 +7,10 @@ struct OrderResultView: View {
     let revealing: Bool
     let reducedMotion: Bool
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+    /// 順位の欄。2 桁の数字が入る幅を、文字と同じ比率で伸ばす。
+    @ScaledMetric(relativeTo: .subheadline) private var rankWidth: CGFloat = 20
+
     var body: some View {
         Group {
             if let ordered {
@@ -46,12 +50,12 @@ struct OrderResultView: View {
             Text("\(rank)")
                 .font(.subheadline.weight(.black).monospacedDigit())
                 .foregroundStyle(top ? Theme.gold : Theme.muted)
-                .frame(width: 20, alignment: .trailing)
+                .frame(width: rankWidth, alignment: .trailing)
                 .accessibilityLabel(L10n.orderRankAccessibilityLabel(rank))
             Text(item.label)
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(top ? Theme.gold : Theme.ivory)
-                .lineLimit(1)
+                .lineLimit(TypeLayout.labelLineLimit(for: typeSize))
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
@@ -79,4 +83,16 @@ struct OrderResultView: View {
     OrderResultView(ordered: nil, resultId: UUID(), revealing: false, reducedMotion: false)
         .padding()
         .background(Theme.ink900)
+}
+
+#Preview("Result AX5") {
+    OrderResultView(
+        ordered: ItemLabel.makeItems(["A チーム", "B チーム", "C チーム", "D チーム"]),
+        resultId: UUID(),
+        revealing: false,
+        reducedMotion: false
+    )
+    .padding()
+    .background(Theme.ink900)
+    .dynamicTypeSize(.accessibility5)
 }

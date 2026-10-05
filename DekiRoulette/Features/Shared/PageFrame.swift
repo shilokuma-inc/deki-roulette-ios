@@ -14,6 +14,8 @@ struct PageFrame<Content: View, Help: View>: View {
     @State private var settingsOpen = false
     @State private var useCasesOpen = false
     @State private var noticeOpen = false
+    /// 設定ボタンの円。中のアイコンが `.body` で伸縮するので、円も同じ比率で伸ばす。
+    @ScaledMetric(relativeTo: .body) private var settingsButtonSize: CGFloat = 40
 
     var body: some View {
         ScrollView {
@@ -24,9 +26,9 @@ struct PageFrame<Content: View, Help: View>: View {
                 footer
                     .padding(.top, 56)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Theme.Layout.pageHorizontalPadding)
             .padding(.vertical, 24)
-            .frame(maxWidth: 768)
+            .frame(maxWidth: Theme.Layout.pageMaxWidth)
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
@@ -41,8 +43,9 @@ struct PageFrame<Content: View, Help: View>: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 10) {
+                // 既定サイズでは従来の 34pt と同じ。Dynamic Type に追従させるためテキストスタイルで指定する
                 Text(title)
-                    .font(.system(size: 34, weight: .black, design: .rounded))
+                    .font(.largeTitle.weight(.black))
                     .tracking(-1)
                     .foregroundStyle(Theme.ivory)
                     .accessibilityAddTraits(.isHeader)
@@ -60,9 +63,9 @@ struct PageFrame<Content: View, Help: View>: View {
             settingsOpen = true
         } label: {
             Image(systemName: "gearshape")
-                .font(.system(size: 17, weight: .bold))
+                .font(.body.weight(.bold))
                 .foregroundStyle(Theme.muted)
-                .frame(width: 40, height: 40)
+                .frame(width: settingsButtonSize, height: settingsButtonSize)
                 .background(Circle().fill(Theme.ink800))
                 .overlay(Circle().strokeBorder(Theme.ink700))
                 .contentShape(Circle())

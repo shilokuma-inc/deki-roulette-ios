@@ -1,11 +1,14 @@
 name: Upload
 
-# main への push は Archive までにとどめ、TestFlight へのアップロードは作業ブランチと develop / release から行う
+# TestFlight へのアップロードは develop と release からだけ行う。
+# 作業ブランチも上げていると App Store Connect の 24 時間あたりのアップロード上限に当たるため、
+# 作業ブランチを実機で確認したいときは手動実行でそのブランチを選ぶ。
 on:
   push:
     branches:
-      - '**'
-      - '!main'
+      - develop
+      - 'release/**'
+  workflow_dispatch:
 
 concurrency:
   group: upload-${{ github.ref }}

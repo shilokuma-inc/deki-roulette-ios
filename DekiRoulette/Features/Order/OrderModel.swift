@@ -78,6 +78,7 @@ final class OrderModel {
         firstId = nil
         lastId = nil
         ordered = nil
+        persist()
     }
 
     /// 削除した項目を元の位置に戻す。指定は復元しない。

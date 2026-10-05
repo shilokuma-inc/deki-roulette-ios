@@ -196,6 +196,15 @@ struct OrderModelTests {
         #expect(store.loadSaved()?.map(\.label) == ["B", "C", "D", "E"])
     }
 
+    @Test func すべて削除したときも保存する() {
+        let storage = InMemoryStorage()
+        let store = makeStore(storage)
+        let model = OrderModel(store: store)
+        model.removeAll()
+        #expect(store.loadSaved()?.isEmpty == true)
+        #expect(OrderModel(store: makeStore(storage)).items.isEmpty)
+    }
+
     @Test func 保存した項目から始まるが指定は残らない() {
         let storage = InMemoryStorage()
         let first = OrderModel(store: makeStore(storage))

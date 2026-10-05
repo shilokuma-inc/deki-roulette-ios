@@ -10,6 +10,9 @@ struct DekiRouletteApp: App {
             RootView()
                 .fontDesign(.rounded)
                 .environment(screenCapture)
+                // 初期化の時点ではシーンが未接続で読めないので、表示されたら読み直す。
+                // 起動前から収録中だと変化の通知が来ないため
+                .onAppear { screenCapture.refresh() }
         }
     }
 }

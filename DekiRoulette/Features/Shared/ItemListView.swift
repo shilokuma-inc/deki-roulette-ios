@@ -429,6 +429,10 @@ private struct ItemRow: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
         // 視差効果を減らす設定では、開閉も指を離した時点の位置へ即座に収める
         .transaction { if reduceMotion { $0.animation = nil } }
+        // 演出が始まったら、その操作は指を離すまでスワイプとして扱わない。演出をまたいで削除されないようにする
+        .onChange(of: busy) { _, isBusy in
+            if isBusy { swiping = false }
+        }
     }
 
     private var content: some View {

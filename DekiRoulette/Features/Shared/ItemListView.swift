@@ -71,7 +71,8 @@ struct ItemListView: View {
         }
         .onDisappear {
             hintTask?.cancel()
-            undoTask?.cancel()
+            // タイマーだけ止めるとトーストが残り、期限を過ぎても戻せてしまうので、取り消し自体を閉じる
+            dismissUndo()
         }
         // 上限に達したり演出が始まったりして入力できなくなったら、開いたままのキーボードを閉じる
         .onChange(of: inputDisabled) { _, disabled in

@@ -27,6 +27,8 @@ struct ItemListView: View {
     @State private var listsFull = false
     @State private var managingLists = false
     @FocusState private var inputFocused: Bool
+    /// 画面収録・ミラーリング中は相手側にも印が映るので伏せる。無ければ（Preview 等）キャプチャ無しとみなす。
+    @Environment(ScreenCaptureMonitor.self) private var screenCapture: ScreenCaptureMonitor?
     /// 入力欄を横並びにするために最低限確保したい幅。文字と同じ比率で伸ばし、
     /// 大きい文字や狭い画面で足りなければ `ViewThatFits` が縦積みに切り替える。
     @ScaledMetric(relativeTo: .subheadline) private var inputMinWidth: CGFloat = 160
@@ -36,8 +38,15 @@ struct ItemListView: View {
     private var inputDisabled: Bool { busy || atCapacity }
 
     /// 指定した本人だけが確認できればよいので、印は項目に触れている間と
-    /// 指定直後だけ出す。演出中と結果表示中は無条件で伏せる。
-    private var revealMarks: Bool { !concealMarks && (pressingCount > 0 || hinting) }
+    /// 指定直後だけ出す。演出中と結果表示中、画面がキャプチャされている間は無条件で伏せる。
+    private var revealMarks: Bool {
+        MarkVisibility.reveals(
+            concealed: concealMarks,
+            captured: screenCapture?.isCaptured ?? false,
+            pressing: pressingCount > 0,
+            hinting: hinting
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {

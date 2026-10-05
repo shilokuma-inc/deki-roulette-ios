@@ -231,13 +231,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The mark only appears while you are touching an item and right after you set it. It disappears while spinning and while the result is up, and this section closes itself the moment you press Spin."
+            "value" : "The mark only appears while you are touching an item and right after you set it. It disappears while spinning and while the result is up, and stays hidden while the screen is being shared or recorded. This section closes itself the moment you press Spin."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "指定した印は、項目に触れている間と指定した直後だけ出ます。スピン中と結果表示中は消え、この説明もスピンを押すと自動で閉じます。"
+            "value" : "指定した印は、項目に触れている間と指定した直後だけ出ます。スピン中と結果表示中は消え、画面を共有・収録している間も出ません。この説明もスピンを押すと自動で閉じます。"
           }
         }
       }
@@ -503,13 +503,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The mark only appears while you are touching an item and right after you set it. It disappears while shuffling and while the result is up, and this section closes itself the moment you press Shuffle."
+            "value" : "The mark only appears while you are touching an item and right after you set it. It disappears while shuffling and while the result is up, and stays hidden while the screen is being shared or recorded. This section closes itself the moment you press Shuffle."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "指定した印は、項目に触れている間と指定した直後だけ出ます。並べ替え中と結果表示中は消え、この説明も並べ替えを押すと自動で閉じます。"
+            "value" : "指定した印は、項目に触れている間と指定した直後だけ出ます。並べ替え中と結果表示中は消え、画面を共有・収録している間も出ません。この説明も並べ替えを押すと自動で閉じます。"
           }
         }
       }

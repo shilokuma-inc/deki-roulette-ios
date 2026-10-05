@@ -60,6 +60,8 @@ Web 版と同じ。以下は仕様であって削ったり戻したりしない�
 - 印は色見本をリングに変えるだけ（末尾は中心に点）。行を押している間と指定直後 `targetHintDuration` の間しか出さず、
   演出中と結果表示中は伏せる（`ItemListView` の `concealMarks`）。伏せている行には `.isSelected` も `accessibilityValue` も付けない。
 - 隠し操作の説明はフッターの「使い方」内にのみ置き、演出開始で自動的に閉じる（`PageFrame`）。
+- 画面がキャプチャ（収録・ミラーリング）されている間も印を伏せる（`ScreenCaptureMonitor` を `Environment` で配り、
+  `MarkVisibility.reveals` で判定）。キャプチャ中であることは画面本文に出さない。
 - 英語の表示名はブランド名「DekiRoulette」（Web 版の一般語「Roulette」とは異なる iOS 固有の差分）。
   タブ・ナビのラベルは一般語のまま。本文に「当たり」「必ず」等の語を置かない。
 

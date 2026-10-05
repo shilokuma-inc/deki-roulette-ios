@@ -26,8 +26,8 @@ struct ThemeContrastTests {
         for background in [Theme.ink900, Theme.ink800] {
             #expect(ratio(Theme.gold, on: background, style) >= 4.5)
             #expect(ratio(Theme.flareText, on: background, style) >= 4.5)
-            for index in 0..<Theme.sliceAccents.count {
-                #expect(ratio(Theme.sliceAccent(at: index), on: background, style) >= 4.5)
+            for accent in Theme.sliceAccents {
+                #expect(ratio(accent, on: background, style) >= 4.5)
             }
         }
     }
@@ -41,8 +41,8 @@ struct ThemeContrastTests {
 
     @Test(arguments: styles)
     func スライスのラベルは塗りに対して4_5対1以上(style: UIUserInterfaceStyle) {
-        for index in 0..<Theme.sliceColors.count {
-            #expect(ratio(Theme.onSlice, on: Theme.sliceColor(at: index), style) >= 4.5)
+        for slice in Theme.sliceColors {
+            #expect(ratio(Theme.onSlice, on: slice, style) >= 4.5)
         }
     }
 
@@ -58,8 +58,8 @@ struct ThemeContrastTests {
 
     @Test(arguments: styles)
     func 沈めたスライスでもラベルは4_5対1以上(style: UIUserInterfaceStyle) {
-        for index in 0..<Theme.sliceColors.count {
-            let dimmed = composite(resolve(Theme.sliceDim, style), over: resolve(Theme.sliceColor(at: index), style))
+        for slice in Theme.sliceColors {
+            let dimmed = composite(resolve(Theme.sliceDim, style), over: resolve(slice, style))
             let ink = luminance(resolve(Theme.onSlice, style))
             #expect((luminance(dimmed) + 0.05) / (ink + 0.05) >= 4.5)
         }

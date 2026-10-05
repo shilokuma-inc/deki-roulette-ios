@@ -33,6 +33,26 @@ enum Config {
 
     /// 追加の入力欄が伸びる行数の上限。改行区切りの貼り付けはこの行数を超えるとスクロールする。
     static let bulkInputVisibleLines = 5
+    /// 名前を付けて保存できる項目リストの数。
+    static let maxSavedLists = 20
+    /// 保存するリストの名前の最大文字数（正規化後）。
+    static let maxSavedListNameLength = 30
+
+    /// スピンの周回数の範囲。フリックの強さもこの範囲の中に写す。
+    static let fullSpinRange: ClosedRange<Int> = 4...8
+
+    /// 盤面のフリックをスピンとみなす角速度（度/秒）の下限。これ未満では何もしない。
+    static let flickMinAngularVelocity: Double = 240
+
+    /// 周回数が上限に達する角速度（度/秒）。これ以上はすべて最大の周回数になる。
+    static let flickMaxAngularVelocity: Double = 1800
+
+    /// 盤面中心からこの半径（pt）の内側では角速度が発散するので、フリックとして扱わない。
+    static let flickDeadZoneRadius: Double = 24
+
+    /// 削除した項目を「元に戻す」で戻せる時間。過ぎると削除が確定する。
+    static let undoDuration: TimeInterval = 5
+
     /// スピンのイージング（Web 版 `SPIN_EASING`）。`Theme.spinAnimation` と、触覚の発火時刻の逆算の両方で使う。
     static let spinEasing = CubicBezierCurve(0.15, 0.85, 0.3, 1)
 

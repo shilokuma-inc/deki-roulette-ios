@@ -20,7 +20,7 @@ struct OrderScreen: View {
             Text(L10n.orderHelpAimStealth)
             Text(L10n.orderHelpAimRandom)
         } content: {
-            AdaptiveStack(horizontal: sizeClass == .regular, spacing: 48) {
+            AdaptiveStack(horizontal: regular, alignment: .center, spacing: Theme.Layout.columnSpacing) {
                 resultSection
                 ItemListView(
                     items: model.items,
@@ -30,9 +30,12 @@ struct OrderScreen: View {
                     atCapacity: model.atCapacity,
                     onAdd: { model.addItems($0) },
                     onRemove: { model.removeItem(id: $0) },
-                    onLongPress: { model.cycleMark(id: $0) }
+                    onRemoveAll: { model.removeAll() },
+                    onRestore: { model.restore($0, at: $1) },
+                    onLongPress: { model.cycleMark(id: $0) },
+                    onLoad: { model.replaceItems($0) }
                 )
-                .frame(maxWidth: sizeClass == .regular ? 320 : .infinity)
+                .frame(maxWidth: regular ? Theme.Layout.listWidthRegular : .infinity)
             }
         }
         // 触覚: 行が 1 件現れるごとの刻みと、全件そろった手応え。設定で OFF にできる
@@ -43,6 +46,8 @@ struct OrderScreen: View {
             hapticsEnabled && wasRevealing && !revealing ? .success : nil
         }
     }
+
+    private var regular: Bool { sizeClass == .regular }
 
     private var resultSection: some View {
         VStack(spacing: 24) {
@@ -78,6 +83,7 @@ struct OrderScreen: View {
 
 #Preview {
     OrderScreen(model: OrderModel(items: ItemLabel.makeItems(L10n.orderDefaultItems)))
+        .environment(SavedListsModel(lists: []))
 }
 
 #Preview("AX5") {

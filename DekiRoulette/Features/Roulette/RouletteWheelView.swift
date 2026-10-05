@@ -2,11 +2,21 @@ import SwiftUI
 
 /// 盤面の描画。回転は親が `rotation` を書き換え、このビューは `rotationEffect` で受ける。
 /// 角度は 12 時を 0 度として時計回りに数える。針は 12 時に固定。
+///
+/// `highlightedIndex` を渡すと、そのスライスを止まった位置として強調する（他を暗くし、渡された瞬間に
+/// 短く押し出して針を跳ねさせる）。nil に戻すと強調も解ける。
+/// フリックは `onFlick` に角速度（度/秒、時計回りが正）で伝える。盤面は指に追従させない。
 struct RouletteWheelView: View {
     let items: [Item]
     let rotation: Double
+    var highlightedIndex: Int? = nil
+    var onFlick: ((Double) -> Void)? = nil
 
-    private static let referenceSize: CGFloat = 320
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsing = false
+
+    /// 線幅・縁・ハブはこの直径を 1 として `scale` で比例させる。ラベルの文字サイズと省略は `WheelLabel` に任せる。
+    private static let referenceSize = CGFloat(WheelLabel.referenceDiameter)
     private static let ink = Theme.onSlice
 
     var body: some View {
@@ -21,9 +31,30 @@ struct RouletteWheelView: View {
             .shadow(color: Theme.wheelShadow, radius: 15, y: 10)
 
             pointer
-                .offset(y: -6)
+                .offset(y: -6 + (pulsing ? Theme.pointerBounceOffset : 0))
         }
         .aspectRatio(1, contentMode: .fit)
+        .overlay {
+            // 指を離した瞬間の速さだけを見る。ドラッグ中に盤面を動かすと、止まった位置と結果の対応が
+            // ずれて見えるので追従はさせない
+            GeometryReader { proxy in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .highPriorityGesture(flickGesture(center: CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)))
+            }
+        }
+        .onChange(of: highlightedIndex) { _, index in
+            // 止まった瞬間だけ押し出す。動きを減らす設定では暗くするだけにする
+            guard index != nil, !reduceMotion else {
+                pulsing = false
+                return
+            }
+            withAnimation(Theme.stopPulseAnimation) {
+                pulsing = true
+            } completion: {
+                withAnimation(Theme.stopSettleAnimation) { pulsing = false }
+            }
+        }
         .accessibilityHidden(true)
     }
 
@@ -34,14 +65,22 @@ struct RouletteWheelView: View {
             .shadow(color: Theme.pointerShadow, radius: 3, y: 3)
     }
 
+    private func flickGesture(center: CGPoint) -> some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onEnded { value in
+                let velocity = FlickSpin.angularVelocity(location: value.location, velocity: value.velocity, center: center)
+                onFlick?(velocity)
+            }
+    }
+
     private func wheel(side: CGFloat) -> some View {
         let scale = side / Self.referenceSize
         let radius = side / 2 - 16 * scale
         let center = CGPoint(x: side / 2, y: side / 2)
         let count = items.count
         let sliceAngle = count > 0 ? 360.0 / Double(count) : 360
-        let maxLabelLength = count > 8 ? 5 : count > 5 ? 7 : 10
-        let fontSize = (count > 8 ? 9.0 : count > 5 ? 11.0 : 13.0) * scale
+        let maxLabelLength = WheelLabel.limit(count: count, diameter: side)
+        let fontSize = WheelLabel.fontSize(count: count, diameter: side)
 
         return ZStack {
             Circle().fill(Theme.wheelRim)
@@ -53,8 +92,8 @@ struct RouletteWheelView: View {
                 Circle().fill(Theme.wheelRim).frame(width: radius * 2, height: radius * 2)
             } else if count == 1 {
                 Circle().fill(Theme.sliceColor(at: 0)).frame(width: radius * 2, height: radius * 2)
-                Text(truncate(items[0].label, max: maxLabelLength))
-                    .font(.system(size: 15 * scale, weight: .bold))
+                Text(WheelLabel.truncate(items[0].label, limit: maxLabelLength))
+                    .font(.system(size: fontSize, weight: .bold))
                     .foregroundStyle(Self.ink)
             } else {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -62,34 +101,47 @@ struct RouletteWheelView: View {
                     let end = start + sliceAngle
                     let mid = start + sliceAngle / 2
                     let labelPoint = polar(center: center, angle: mid, radius: radius * 0.62)
+                    let highlighted = index == highlightedIndex
+                    let dimmed = highlightedIndex != nil && !highlighted
 
-                    SliceShape(startAngle: start, endAngle: end, radius: radius)
-                        .fill(Theme.sliceColor(at: index))
-                        .overlay(
-                            SliceShape(startAngle: start, endAngle: end, radius: radius)
-                                .stroke(Self.ink, lineWidth: 2 * scale)
-                        )
+                    ZStack {
+                        SliceShape(startAngle: start, endAngle: end, radius: radius)
+                            .fill(Theme.sliceColor(at: index))
+                            .overlay(
+                                SliceShape(startAngle: start, endAngle: end, radius: radius)
+                                    .stroke(Self.ink, lineWidth: 2 * scale)
+                            )
 
-                    Text(truncate(item.label, max: maxLabelLength))
-                        .font(.system(size: fontSize, weight: .bold))
-                        .foregroundStyle(Self.ink)
-                        .fixedSize()
-                        // 左半分はそのまま回すと文字が上下逆さまになるため 180 度返す
-                        .rotationEffect(.degrees(mid > 180 ? mid + 90 : mid - 90))
-                        .position(labelPoint)
+                        Text(WheelLabel.truncate(item.label, limit: maxLabelLength))
+                            .font(.system(size: fontSize, weight: .bold))
+                            .foregroundStyle(Self.ink)
+                            .fixedSize()
+                            // 左半分はそのまま回すと文字が上下逆さまになるため 180 度返す
+                            .rotationEffect(.degrees(mid > 180 ? mid + 90 : mid - 90))
+                            .position(labelPoint)
+                    }
+                    // 止まったスライス以外に地色を薄く重ねて沈める
+                    .overlay(
+                        SliceShape(startAngle: start, endAngle: end, radius: radius)
+                            .fill(Theme.sliceDim)
+                            .opacity(dimmed ? 1 : 0)
+                    )
+                    .animation(reduceMotion ? nil : Theme.stopDimAnimation, value: dimmed)
+                    // 押し出したスライスが隣に隠れないよう、強調中だけ前に出す
+                    .scaleEffect(highlighted && pulsing ? Theme.stopPulseScale : 1)
+                    .zIndex(highlighted ? 1 : 0)
                 }
             }
 
-            Circle().fill(Theme.wheelHub)
-                .overlay(Circle().strokeBorder(Theme.wheelHubMark, lineWidth: 2.5 * scale))
-                .frame(width: 38 * scale, height: 38 * scale)
-            Circle().fill(Theme.wheelHubMark).frame(width: 12 * scale, height: 12 * scale)
+            Group {
+                Circle().fill(Theme.wheelHub)
+                    .overlay(Circle().strokeBorder(Theme.wheelHubMark, lineWidth: 2.5 * scale))
+                    .frame(width: 38 * scale, height: 38 * scale)
+                Circle().fill(Theme.wheelHubMark).frame(width: 12 * scale, height: 12 * scale)
+            }
+            .zIndex(2)
         }
         .frame(width: side, height: side)
-    }
-
-    private func truncate(_ label: String, max: Int) -> String {
-        label.count > max ? String(label.prefix(max)) + "…" : label
     }
 
     private func polar(center: CGPoint, angle: Double, radius: CGFloat) -> CGPoint {
@@ -142,4 +194,14 @@ private struct Triangle: Shape {
     RouletteWheelView(items: ItemLabel.makeItems((1...12).map { "項目\($0)" }), rotation: 30)
         .padding(40)
         .background(Theme.ink900)
+}
+
+#Preview("Stopped") {
+    RouletteWheelView(
+        items: ItemLabel.makeItems(["ラーメン", "カレー", "寿司", "焼肉"]),
+        rotation: 45,
+        highlightedIndex: 3
+    )
+    .padding(40)
+    .background(Theme.ink900)
 }

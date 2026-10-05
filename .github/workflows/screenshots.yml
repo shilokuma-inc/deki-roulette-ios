@@ -1,0 +1,89 @@
+# App Store 用スクリーンショットを撮って App Store Connect にアップロードする。手動実行のみ。
+#
+# 撮影は scripts/capture-screenshots.sh、アップロードは scripts/asc-upload-screenshots.swift で、
+# ローカルで実行するときと同じ手順を runner で回す。
+# 認証は Organization 共通の App Store Connect API Key（Secrets）を使う。
+name: Screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: App Store Connect には書き込まず、撮影と対象バージョン・セットの確認だけ行う
+        type: boolean
+        default: true
+      version:
+        description: アップロード先のバージョン（例 1.0.0）。空なら編集可能な状態の最新バージョン
+        type: string
+        default: ''
+      xcode-version:
+        description: maxim-lobanov/setup-xcode に渡す Xcode バージョン
+        type: string
+        # runner 側の更新で撮れる画像が変わらないよう固定する。撮影する端末は scripts/capture-screenshots.sh を参照
+        default: '26.6'
+
+permissions:
+  contents: read
+
+# 既存画像を消した直後に止めると App Store Connect 上に空のセットだけが残るため、実行中のものは完了させる
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  screenshots:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ inputs.xcode-version }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Capture screenshots
+        run: scripts/capture-screenshots.sh
+
+      - name: List simulators
+        # 端末名が runner に無いときの調査用
+        if: failure()
+        run: xcrun simctl list devices available
+
+      - name: Upload screenshots to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/
+          if-no-files-found: error
+
+      - name: Create API private key
+        # Secrets はシェル展開ではなく env 経由で渡し、鍵はリポジトリ配下ではなく RUNNER_TEMP に置く
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        run: |
+          key_path="$RUNNER_TEMP/private_keys/AuthKey_$APPLE_API_KEY_ID.p8"
+          mkdir -p "$(dirname "$key_path")"
+          printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$key_path"
+          echo "ASC_PRIVATE_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Upload screenshots to App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          args=()
+          [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
+          [ -n "$VERSION" ] && args+=(--version "$VERSION")
+          swift scripts/asc-upload-screenshots.swift "${args[@]}"

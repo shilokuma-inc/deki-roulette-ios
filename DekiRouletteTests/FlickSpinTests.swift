@@ -1,51 +1,112 @@
 import CoreGraphics
+import Foundation
 import Testing
 @testable import DekiRoulette
 
 struct FlickSpinTests {
     private let center = CGPoint(x: 160, y: 160)
 
-    // MARK: 角速度
-
-    @Test func 右側で下向きに動かすと時計回りで正になる() {
-        // 半径 100pt の位置で接線方向に 100pt/秒 → 1 rad/秒
-        let velocity = FlickSpin.angularVelocity(
-            location: CGPoint(x: 260, y: 160),
-            velocity: CGSize(width: 0, height: 100),
-            center: center
-        )
-        #expect(abs(velocity - 180 / .pi) < 1e-9)
+    /// 中心から `radius` の円周上を、`from` 度から `degreesPerSecond` で `duration` 秒動いた記録。60Hz で刻む。
+    /// 角度は 3 時を 0 度、画面上の時計回りを正とする。
+    private func arc(
+        radius: CGFloat = 100, from start: Double = -90, degreesPerSecond: Double, duration: TimeInterval, startTime: TimeInterval = 0
+    ) -> [FlickSpin.Sample] {
+        let steps = Int((duration * 60).rounded())
+        return (0...steps).map { step in
+            let time = Double(step) / 60
+            let angle = (start + degreesPerSecond * time) * .pi / 180
+            return FlickSpin.Sample(
+                time: startTime + time,
+                location: CGPoint(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
+            )
+        }
     }
 
-    @Test func 上側で左向きに動かすと反時計回りで負になる() {
-        let velocity = FlickSpin.angularVelocity(
-            location: CGPoint(x: 160, y: 60),
-            velocity: CGSize(width: -100, height: 0),
-            center: center
-        )
-        #expect(abs(velocity + 180 / .pi) < 1e-9)
+    // MARK: 角速度
+
+    @Test func 時計回りに回すと正になる() {
+        let velocity = FlickSpin.angularVelocity(samples: arc(degreesPerSecond: 600, duration: 0.2), center: center)
+        #expect(abs(velocity - 600) < 1)
+    }
+
+    @Test func 反時計回りに回すと負になる() {
+        let velocity = FlickSpin.angularVelocity(samples: arc(degreesPerSecond: -600, duration: 0.2), center: center)
+        #expect(abs(velocity + 600) < 1)
+    }
+
+    @Test func 直前の窓の動きだけを見る() {
+        // ゆっくり回してから最後の 0.1 秒だけ速く払う
+        let slow = arc(degreesPerSecond: 60, duration: 0.5)
+        let fast = arc(from: -90 + 30, degreesPerSecond: 900, duration: Config.flickSampleWindow, startTime: 0.5 + 1.0 / 60)
+        let velocity = FlickSpin.angularVelocity(samples: slow + fast, center: center)
+        #expect(velocity > 700)
+    }
+
+    @Test func 離す直前に少し止めても勢いを残す() {
+        // 速く払ったあと 50ms 止めてから離す。離した瞬間の速度は 0 だが、窓の平均で閾値を越える
+        var samples = arc(degreesPerSecond: 900, duration: 0.2)
+        let last = samples[samples.count - 1]
+        samples.append(FlickSpin.Sample(time: last.time + 0.05, location: last.location))
+        let velocity = FlickSpin.angularVelocity(samples: samples, center: center)
+        #expect(FlickSpin.fullSpins(angularVelocity: velocity) != nil)
+    }
+
+    @Test func 止めたまま離すと回さない() {
+        var samples = arc(degreesPerSecond: 900, duration: 0.2)
+        let last = samples[samples.count - 1]
+        // 窓より長く止めてから離す
+        samples.append(FlickSpin.Sample(time: last.time + Config.flickSampleWindow + 1.0 / 60, location: last.location))
+        #expect(FlickSpin.angularVelocity(samples: samples, center: center) == 0)
+    }
+
+    @Test func 直線の払いでも中心のまわりの成分を拾う() {
+        // 盤面上側を右へまっすぐ 1500pt/秒
+        let samples = (0...12).map { step in
+            FlickSpin.Sample(time: Double(step) / 60, location: CGPoint(x: 70 + 25 * CGFloat(step), y: 60))
+        }
+        let velocity = FlickSpin.angularVelocity(samples: samples, center: center)
+        #expect(velocity > Config.flickMinAngularVelocity)
     }
 
     @Test func 半径方向の動きは角速度にならない() {
-        let velocity = FlickSpin.angularVelocity(
-            location: CGPoint(x: 260, y: 160),
-            velocity: CGSize(width: 500, height: 0),
-            center: center
-        )
-        #expect(velocity == 0)
+        let samples = (0...6).map { step in
+            FlickSpin.Sample(time: Double(step) / 60, location: CGPoint(x: 200 + 20 * CGFloat(step), y: 160))
+        }
+        #expect(abs(FlickSpin.angularVelocity(samples: samples, center: center)) < 1e-9)
     }
 
-    @Test func 中心付近は無視する() {
-        let inside = CGPoint(x: center.x + Config.flickDeadZoneRadius - 1, y: center.y)
-        let velocity = FlickSpin.angularVelocity(location: inside, velocity: CGSize(width: 0, height: 3000), center: center)
-        #expect(velocity == 0)
+    @Test func 九時をまたいでも一周分跳ねない() {
+        // atan2 が ±180 度で折り返す位置（9 時）を時計回りにまたぐ
+        let velocity = FlickSpin.angularVelocity(samples: arc(from: 160, degreesPerSecond: 600, duration: 0.1), center: center)
+        #expect(abs(velocity - 600) < 1)
     }
 
-    @Test func 同じ速さなら半径が小さいほど角速度が大きい() {
-        let near = FlickSpin.angularVelocity(location: CGPoint(x: 210, y: 160), velocity: CGSize(width: 0, height: 100), center: center)
-        let far = FlickSpin.angularVelocity(location: CGPoint(x: 310, y: 160), velocity: CGSize(width: 0, height: 100), center: center)
-        #expect(near > far)
-        #expect(abs(near / far - 3) < 1e-9)
+    @Test func 中心付近の点は使わない() {
+        let inside = Config.flickDeadZoneRadius - 1
+        let samples = arc(radius: inside, degreesPerSecond: 3000, duration: 0.1)
+        #expect(FlickSpin.angularVelocity(samples: samples, center: center) == 0)
+    }
+
+    @Test func 記録が1点以下なら0() {
+        #expect(FlickSpin.angularVelocity(samples: [], center: center) == 0)
+        #expect(FlickSpin.angularVelocity(samples: Array(arc(degreesPerSecond: 600, duration: 0.1).prefix(1)), center: center) == 0)
+    }
+
+    // MARK: 記録
+
+    @Test @MainActor func 間が空いたら前の記録を捨てる() {
+        let buffer = FlickSampleBuffer()
+        buffer.append(FlickSpin.Sample(time: 0, location: CGPoint(x: 260, y: 160)))
+        buffer.append(FlickSpin.Sample(time: 1, location: CGPoint(x: 160, y: 60)))
+        #expect(buffer.samples.count == 1)
+    }
+
+    @Test @MainActor func 窓より古い点は直前の1点だけ残す() throws {
+        let buffer = FlickSampleBuffer()
+        for sample in arc(degreesPerSecond: 600, duration: 1) { buffer.append(sample) }
+        let first = try #require(buffer.samples.first)
+        let last = try #require(buffer.samples.last)
+        #expect(last.time - first.time <= Config.flickSampleWindow * 2 + 1.0 / 60 + 1e-9)
     }
 
     // MARK: 周回数

@@ -45,6 +45,9 @@ enum L10n {
     static var orderHelpAimRandom: String { tr("orderHelpAimRandom") }
     static var orderUseCases: String { tr("orderUseCases") }
     static var settingsTitle: String { tr("settingsTitle") }
+    static var soundTitle: String { tr("soundTitle") }
+    static var soundToggle: String { tr("soundToggle") }
+    static var soundNote: String { tr("soundNote") }
     static var close: String { tr("close") }
     static var copyright: String { tr("copyright") }
     static var copyrightTitle: String { tr("copyrightTitle") }

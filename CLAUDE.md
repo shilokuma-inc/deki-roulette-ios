@@ -9,6 +9,7 @@ xcodegen generate   # project.yml から DekiRoulette.xcodeproj を生成（.xco
 xcodebuild -project DekiRoulette.xcodeproj -scheme DekiRoulette -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
 xcodebuild -project DekiRoulette.xcodeproj -scheme DekiRoulette -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 swift scripts/make-icon.swift DekiRoulette/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png  # アイコン再生成
+swift scripts/make-click-sound.swift DekiRoulette/Resources/Sounds/click.wav  # 回転音の再生成（--preview で 1 スピン分の試聴用）
 ```
 
 ファイルを追加・削除したら `xcodegen generate` を再実行する（`project.yml` はディレクトリ単位で sources を拾う）。
@@ -59,6 +60,15 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 `HapticSchedule.boundaryCrossings`（`Config.spinEasing` を `CubicBezierCurve` で逆算）で境目を越える時刻を
 先に求め、`TickScheduler` の `Task` でカウンタを刻む。完了・中断でキャンセルし、`reducedMotion` では刻まない。
 ON/OFF は `@AppStorage(Config.hapticsEnabledKey)`。設定の文言は「触覚フィードバック」だけで、長押しには触れない。
+
+### 回転音の仕組み
+
+スピン中は針がスライスの境目を越えるたびにクリック音を鳴らす。補間中の角度は observable でないので、
+`beginSpin` が `SpinTicks.boundaryCrossings`（`Config.spinEasing` を `CubicBezierCurve` で逆算）で鳴らす時刻を
+先に求め、`SpinSoundPlayer` が `ClickTrack` で 1 本の波形に焼いてから一度に流す（1 発ずつタイマーで鳴らすと
+リズムが揺れるため）。`Config.clickMinInterval` より詰まった時刻は間引く。音源は `Resources/Sounds/click.wav`
+（`scripts/make-click-sound.swift` で再生成）。`AVAudioSession` は `.ambient` で、消音スイッチに従い他アプリの
+音も止めない。`reducedMotion` では鳴らさない。ON/OFF は `@AppStorage(Config.soundEnabledKey)`。
 
 ### 並べ替えの仕組み
 

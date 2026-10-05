@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// ヘッダ右上のアイコンから開く設定。触覚フィードバックの切替、項目の初期化、著作権の項目を置く。
+/// ヘッダ右上のアイコンから開く設定。触覚フィードバックと効果音の切替、項目の初期化、著作権の項目を置く。
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
+    @AppStorage(Config.soundEnabledKey) private var soundEnabled = true
     // 両画面のモデルは RootView が environment に流している。どちらのタブから開いても両方を戻せる。
     @Environment(RouletteModel.self) private var rouletteModel
     @Environment(OrderModel.self) private var orderModel
@@ -25,6 +26,15 @@ struct SettingsView: View {
                     // 文言はこの見出しだけ。何に使うかの説明は置かない（長押しの存在を示唆しないため）
                     SettingsToggle(title: L10n.hapticsTitle, isOn: $hapticsEnabled)
 
+                    SettingsSection(title: L10n.soundTitle) {
+                        Toggle(L10n.soundToggle, isOn: $soundEnabled)
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.ivory)
+                            .tint(Theme.ivory)
+                        Text(L10n.soundNote)
+                            .font(.caption)
+                            .foregroundStyle(Theme.muted)
+                    }
                     SettingsSection(title: L10n.resetItemsTitle) {
                         Text(L10n.resetItemsDescription)
                             .font(.caption)

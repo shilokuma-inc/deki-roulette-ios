@@ -4,8 +4,10 @@ struct RouletteScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var typeSize
-    let model: RouletteModel
     @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
+    @AppStorage(Config.soundEnabledKey) private var soundEnabled = true
+    let model: RouletteModel
+    @State private var sound = SpinSoundPlayer()
 
     var body: some View {
         PageFrame(
@@ -53,6 +55,8 @@ struct RouletteScreen: View {
         .sensoryFeedback(trigger: model.outcome) { _, outcome in
             hapticsEnabled && outcome != nil ? .success : nil
         }
+        .onAppear { if soundEnabled { sound.prepare() } }
+        .onDisappear { sound.stop() }
     }
 
     private var regular: Bool { sizeClass == .regular }
@@ -125,6 +129,7 @@ struct RouletteScreen: View {
 
     private func spin(fullSpins: Int?) {
         guard let next = model.beginSpin(reducedMotion: reduceMotion, fullSpins: fullSpins) else { return }
+        if soundEnabled { sound.play(at: model.clickTimes) }
         if reduceMotion {
             // 動きを減らす設定では回さずに止まる。終了は保険のタイマーが担う
             model.rotation = next

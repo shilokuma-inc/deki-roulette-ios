@@ -235,6 +235,23 @@ struct RouletteModelTests {
         #expect(model.boundaryTick == 0)
     }
 
+    @Test func クリック音の時刻はスピンの間に収まる() {
+        let model = makeModel()
+        let next = model.beginSpin(reducedMotion: false)!
+        #expect(!model.clickTimes.isEmpty)
+        #expect(model.clickTimes == model.clickTimes.sorted())
+        #expect(model.clickTimes.first! > 0)
+        #expect(model.clickTimes.last! <= Config.spinDuration)
+        // 4 項目なので境目は 90 度ごと。間引きがある分だけ必ず少なくなる
+        #expect(model.clickTimes.count <= Int(next / 90))
+    }
+
+    @Test func 動きを減らす設定では鳴らさない() {
+        let model = makeModel()
+        model.rotation = model.beginSpin(reducedMotion: true)!
+        #expect(model.clickTimes.isEmpty)
+    }
+
     @Test func 項目を触ると結果が消える() {
         let model = makeModel()
         model.rotation = model.beginSpin(reducedMotion: false)!

@@ -31,6 +31,9 @@ enum Config {
     /// コピーできたことを伝える表示を出しておく時間。
     static let copyFeedbackDuration: TimeInterval = 1.8
 
+    /// スピンのイージング（Web 版 `SPIN_EASING`）。`Theme.spinAnimation` と、触覚とクリック音の時刻の逆算で使う。
+    static let spinEasing = CubicBezierCurve(0.15, 0.85, 0.3, 1)
+
     /// 追加の入力欄が伸びる行数の上限。改行区切りの貼り付けはこの行数を超えるとスクロールする。
     static let bulkInputVisibleLines = 5
     /// 名前を付けて保存できる項目リストの数。
@@ -53,9 +56,6 @@ enum Config {
     /// 削除した項目を「元に戻す」で戻せる時間。過ぎると削除が確定する。
     static let undoDuration: TimeInterval = 5
 
-    /// スピンのイージング（Web 版 `SPIN_EASING`）。`Theme.spinAnimation` と、触覚の発火時刻の逆算の両方で使う。
-    static let spinEasing = CubicBezierCurve(0.15, 0.85, 0.3, 1)
-
     // MARK: 触覚
 
     /// 触覚フィードバックの ON/OFF を保存する `UserDefaults` のキー。未設定なら ON。
@@ -69,4 +69,15 @@ enum Config {
 
     /// スピン中に境目を越える触覚を鳴らす最短間隔。序盤は境目を越える間隔がこれより短いので間引く。
     static let hapticMinInterval: TimeInterval = 0.06
+
+    // MARK: 効果音
+
+    /// 効果音の ON/OFF を保存する `UserDefaults` のキー。未設定なら ON。
+    static let soundEnabledKey = "soundEnabled"
+
+    /// スピン中にクリック音を鳴らす最短間隔。序盤は境目を越える間隔がこれより短いので間引く。
+    static let clickMinInterval: TimeInterval = 0.032
+
+    /// クリック音の音量。密に重なっても耳に刺さらないところまで下げてある。
+    static let clickGain: Float = 0.7
 }

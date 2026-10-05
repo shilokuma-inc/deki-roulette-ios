@@ -22,6 +22,8 @@ final class RouletteModel {
 
     /// スピン中に針がスライスの境目を越えた回数。境目ごとに触覚を鳴らすトリガで、リセットしない。
     private(set) var boundaryTick = 0
+    /// スピン中にクリック音を鳴らす時刻（開始からの秒）。View が再生に渡す。
+    private(set) var clickTimes: [TimeInterval] = []
 
     private var pendingOutcome: SpinOutcome?
     private var fallbackTask: Task<Void, Never>?
@@ -147,6 +149,17 @@ final class RouletteModel {
         pendingOutcome = SpinOutcome(index: targetIndex, label: items[targetIndex].label)
         outcome = nil
         spinning = true
+
+        // 補間中の角度は observable でないので、境目を越える時刻を先に求めておく。
+        // 動きを減らす設定では盤面が回らないので鳴らさない
+        clickTimes = reducedMotion ? [] : SpinTicks.boundaryCrossings(
+            from: rotation,
+            to: next,
+            count: items.count,
+            duration: Config.spinDuration,
+            easing: Config.spinEasing,
+            minInterval: Config.clickMinInterval
+        )
 
         // 完了コールバックが来ない環境（バックグラウンド等）向けの保険
         fallbackTask?.cancel()

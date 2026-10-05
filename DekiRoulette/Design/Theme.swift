@@ -87,7 +87,7 @@ enum Theme {
         sliceAccents[index % sliceAccents.count]
     }
 
-    /// 曲線は `Config.spinEasing` に置き、触覚の発火時刻の逆算（`HapticSchedule`）と同じ形を共有する。
+    /// 曲線は `Config.spinEasing` に置き、触覚の発火時刻（`HapticSchedule`）とクリック音の時刻（`SpinTicks`）の逆算と同じ形を共有する。
     static let spinAnimation = Animation.timingCurve(
         Config.spinEasing.x1, Config.spinEasing.y1, Config.spinEasing.x2, Config.spinEasing.y2,
         duration: Config.spinDuration

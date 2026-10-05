@@ -19,7 +19,7 @@ struct RouletteScreen: View {
             Text(L10n.helpAimStealth)
             Text(L10n.helpAimRandom)
         } content: {
-            AdaptiveStack(horizontal: sizeClass == .regular, spacing: 48) {
+            AdaptiveStack(horizontal: regular, alignment: .center, spacing: Theme.Layout.columnSpacing) {
                 wheelSection
                 ItemListView(
                     items: model.items,
@@ -29,9 +29,10 @@ struct RouletteScreen: View {
                     atCapacity: model.atCapacity,
                     onAdd: { model.addItems($0) },
                     onRemove: { model.removeItem(id: $0) },
-                    onLongPress: { model.toggleTarget(id: $0) }
+                    onLongPress: { model.toggleTarget(id: $0) },
+                    onLoad: { model.replaceItems($0) }
                 )
-                .frame(maxWidth: sizeClass == .regular ? 320 : .infinity)
+                .frame(maxWidth: regular ? Theme.Layout.listWidthRegular : .infinity)
             }
         }
         .onChange(of: model.result) { _, result in
@@ -40,6 +41,8 @@ struct RouletteScreen: View {
             }
         }
     }
+
+    private var regular: Bool { sizeClass == .regular }
 
     private var wheelSection: some View {
         VStack(spacing: 24) {
@@ -50,7 +53,7 @@ struct RouletteScreen: View {
                 highlightedIndex: model.outcome?.index,
                 onFlick: flick
             )
-            .frame(maxWidth: 320)
+            .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
 
             // 結果の有無で下のボタンが動かないよう高さを固定する。大きい文字では枠からはみ出るので最小高さだけ残す
             resultStatus
@@ -124,6 +127,7 @@ struct RouletteScreen: View {
 
 #Preview {
     RouletteScreen(model: RouletteModel(items: ItemLabel.makeItems(L10n.defaultItems)))
+        .environment(SavedListsModel(lists: []))
 }
 
 #Preview("AX5") {

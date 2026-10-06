@@ -25,6 +25,9 @@ final class RouletteModel {
     /// スピン中にクリック音を鳴らす時刻（開始からの秒）。View が再生に渡す。
     private(set) var clickTimes: [TimeInterval] = []
 
+    /// 直前のフリックの向き。「スピン」ボタンはこの向きで回す。保存しないので起動ごとに時計回りから始まる。
+    private(set) var lastDirection: SpinDirection = .clockwise
+
     private var pendingOutcome: SpinOutcome?
     private var fallbackTask: Task<Void, Never>?
     private var tickTask: Task<Void, Never>?
@@ -130,8 +133,11 @@ final class RouletteModel {
     /// 呼び出し側はこの値を `rotation` にアニメーション付きで反映し、
     /// アニメーション完了時に `finishSpin()` を呼ぶ。
     /// `fullSpins` を渡すと周回数だけをその値にする（フリックの強さの反映）。止まる位置の決め方は変わらない。
-    func beginSpin(reducedMotion: Bool, fullSpins: Int? = nil) -> Double? {
+    /// `direction` を渡すとその向きに回し、以後のボタンのスピンもその向きを引き継ぐ（フリックの向きの反映）。
+    /// 省くと直前に渡された向き（初期値は時計回り）で回す。
+    func beginSpin(reducedMotion: Bool, fullSpins: Int? = nil, direction: SpinDirection? = nil) -> Double? {
         guard canSpin else { return nil }
+        if let direction { lastDirection = direction }
 
         let targetIndex: Int
         if let targetId {
@@ -142,9 +148,11 @@ final class RouletteModel {
         }
 
         let next = if let fullSpins {
-            RouletteMath.nextRotation(current: rotation, targetIndex: targetIndex, count: items.count, fullSpins: fullSpins)
+            RouletteMath.nextRotation(
+                current: rotation, targetIndex: targetIndex, count: items.count, fullSpins: fullSpins, direction: lastDirection
+            )
         } else {
-            RouletteMath.nextRotation(current: rotation, targetIndex: targetIndex, count: items.count)
+            RouletteMath.nextRotation(current: rotation, targetIndex: targetIndex, count: items.count, direction: lastDirection)
         }
         pendingOutcome = SpinOutcome(index: targetIndex, label: items[targetIndex].label)
         outcome = nil

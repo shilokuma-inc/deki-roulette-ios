@@ -69,10 +69,45 @@ struct HapticScheduleTests {
 
     @Test func 回らないなら何も鳴らない() {
         #expect(crossings(from: 100, to: 100, count: 4).isEmpty)
-        #expect(crossings(from: 100, to: 50, count: 4).isEmpty)
         #expect(crossings(from: 0, to: 360, count: 0).isEmpty)
+        #expect(crossings(from: 0, to: -360, count: 0).isEmpty)
         // 1 スライスしか進まないうちに止まる
         #expect(crossings(from: 10, to: 80, count: 4).isEmpty)
+        #expect(crossings(from: 80, to: 10, count: 4).isEmpty)
+    }
+
+    @Test func 反時計回りでも境目の数は通過するスライスの数に等しい() {
+        #expect(crossings(from: 0, to: -765, count: 4).count == 8)
+        // 開始位置がちょうど境目のときは、その境目は数えない
+        #expect(crossings(from: -90, to: -765, count: 4).count == 7)
+        // 終了位置がちょうど境目のときは、その境目を数える
+        #expect(crossings(from: 0, to: -720, count: 4).count == 8)
+        #expect(crossings(from: 100, to: 50, count: 4).count == 1)
+    }
+
+    @Test func 反時計回りでも各時刻で針の下の添字が切り替わる() {
+        var rng = SeededGenerator(seed: 6)
+        for _ in 0..<200 {
+            let count = Int.random(in: 2...Config.maxItems, using: &rng)
+            let from = Double.random(in: -3600..<3600, using: &rng)
+            let to = from - Double.random(in: 4 * 360..<10 * 360, using: &rng)
+            let times = crossings(from: from, to: to, count: count)
+            #expect(!times.isEmpty)
+            #expect(times == times.sorted())
+            #expect(times.last! <= duration + 1e-9)
+            for time in times {
+                let before = RouletteMath.indexUnderPointer(rotation: rotation(at: time - 1e-4, from: from, to: to), count: count)
+                let after = RouletteMath.indexUnderPointer(rotation: rotation(at: time + 1e-4, from: from, to: to), count: count)
+                #expect(before != after)
+            }
+        }
+    }
+
+    @Test func 反時計回りの時刻は時計回りと対称になる() {
+        let forward = crossings(from: 123, to: 123 + 6 * 360 + 200, count: 7, minInterval: Config.hapticMinInterval)
+        let backward = crossings(from: -123, to: -(123 + 6 * 360 + 200), count: 7, minInterval: Config.hapticMinInterval)
+        #expect(!backward.isEmpty)
+        #expect(backward == forward)
     }
 
     @Test func 順番決めは行が現れる時刻に刻む() {

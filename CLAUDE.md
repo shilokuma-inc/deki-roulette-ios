@@ -59,8 +59,10 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 盤面のフリックでも始められる。`RouletteWheelView` がドラッグ中の位置を `FlickSampleBuffer` に記録し、指を離す直前
 `Config.flickSampleWindow` に中心のまわりを回った角度から `FlickSpin.angularVelocity` で角速度を出す（離した瞬間の
 `velocity` は揺れが大きく、同じフリックでも回らないことがあるので使わない）。それを
-`FlickSpin.fullSpins` で周回数に写して `beginSpin(reducedMotion:fullSpins:)` に渡す（閾値未満は何もしない）。
-強さは周回数にだけ効き、止まる位置の式は変えない。停止後は `outcome.index` を `highlightedIndex` として渡し、
+`FlickSpin.spin` で周回数と向き（`SpinDirection`、角速度の符号）に写して `beginSpin(reducedMotion:fullSpins:direction:)` に渡す
+（閾値未満は何もしない）。強さは周回数にだけ効き、止まる位置の式は変えない。反時計回りでは `RouletteMath.nextRotation` が
+累積角を減らす向きに決め、`SpinTicks` / `HapticSchedule` は `to < from` を符号を反転して同じ式で数える。モデルは直前のフリックの
+向きを `lastDirection` に覚え、「スピン」ボタンはその向きで回す（初期値は時計回り、保存しない）。停止後は `outcome.index` を `highlightedIndex` として渡し、
 他のスライスを `Theme.sliceDim` で沈める。押し出しと針の跳ねは停止の瞬間だけで、`accessibilityReduceMotion` では省く。
 
 ### 触覚の仕組み

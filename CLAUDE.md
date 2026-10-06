@@ -49,6 +49,11 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 完了コールバックが来ない場合の保険として `Config.spinFallback` のタイマーを持つ。
 `accessibilityReduceMotion` のときは回さず、`reducedMotionSpinDuration` 後に完了扱いにする。
 
+盤面の `rotationEffect` には `.animation(Theme.spinAnimation, value: rotation)` を付けてある（`reduceMotion` では `nil`）。
+キーボードが出た状態でスピンを始めると、演出開始で入力欄が無効になってキーボードが閉じ、その安全領域の変化が
+`withAnimation` の更新に重なって補間が落ちる（盤面が最終角度へ飛び、音だけが鳴る）ため、回転の値の変化だけは
+外側のトランザクションに依らず `Theme.spinAnimation` で補間させる。回り始めとキーボードの閉じ始めは同時で、音・触覚の時刻は変えない。
+
 盤面は 12 時を 0 度、時計回り。`SliceShape` は `clockwise: false` で画面上は時計回りになる（y 軸が下向きのため）。
 
 盤面のフリックでも始められる。`RouletteWheelView` がドラッグ中の位置を `FlickSampleBuffer` に記録し、指を離す直前

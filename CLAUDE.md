@@ -27,8 +27,11 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 - 配色・アニメーションは `Theme` に集約。`gold` は順番決めの 1 位とフォーカスリング専用（ルーレットの結果表示は止まったスライスと同じ色）、`flare` は開始ボタン専用。印に専用色は使わない。
 - 色は端末の外観設定に従う。トークンは `Color(light:dark:)` で 2 値を持ち、アプリ内に切替は置かない。
   盤面と開始ボタンの塗りは外観に依らず固定（`onSlice` / `wheel*` / `onFlare`）で、スライス色を文字や
-  色見本に使うところは `sliceColor(at:)` ではなく `sliceAccent(at:)` を使う。追加した配色は
+  色見本に使うところは `sliceColor(at:count:)` ではなく `sliceAccent(at:count:)` を使う。追加した配色は
   `ThemeContrastTests` でコントラスト比を検証する。
+- スライス色は必ず件数つきで引く（`Theme.sliceColor(at:count:)` / `sliceAccent(at:count:)`）。添字は
+  `SlicePalette`（`Core/`）が決め、件数が `n % 色数 == 1` のときだけ末尾をずらして環の継ぎ目が同じ色にならないようにする。
+  盤面の塗り（`RouletteWheelView`）・行の色見本（`ItemListView`）・結果表示の枠（`RouletteScreen`）は同じ関数で引く。
 - レイアウトの寸法（盤面の上限、横並びの列幅、ページ幅）は `Theme.Layout` に置く。`horizontalSizeClass == .regular`
   で横並びになり、盤面は 480pt まで広がる。盤面ラベルの省略と文字サイズは `WheelLabel`（`Core/`）が直径から決める。
 - 項目リストは `ItemStore`（`Core/`）が画面ごとに `UserDefaults` へ保存する。保存するのは `id` と `label` だけで、

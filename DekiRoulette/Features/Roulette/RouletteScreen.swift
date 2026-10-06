@@ -99,8 +99,8 @@ struct RouletteScreen: View {
     @ViewBuilder
     private var resultStatus: some View {
         if let outcome = model.outcome {
-            // 止まったスライスと同じ色で出す
-            let color = Theme.sliceAccent(at: outcome.index)
+            // 止まったスライスと同じ色で出す。項目を変えると `outcome` は消えるので、件数はスピン開始時と同じ
+            let color = Theme.sliceAccent(at: outcome.index, count: model.items.count)
             Text(outcome.label)
                 .font(.title3.weight(.black))
                 .foregroundStyle(color)

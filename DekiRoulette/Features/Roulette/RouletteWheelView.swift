@@ -97,7 +97,7 @@ struct RouletteWheelView: View {
             if count == 0 {
                 Circle().fill(Theme.wheelRim).frame(width: radius * 2, height: radius * 2)
             } else if count == 1 {
-                Circle().fill(Theme.sliceColor(at: 0)).frame(width: radius * 2, height: radius * 2)
+                Circle().fill(Theme.sliceColor(at: 0, count: count)).frame(width: radius * 2, height: radius * 2)
                 Text(WheelLabel.truncate(items[0].label, limit: maxLabelLength))
                     .font(.system(size: fontSize, weight: .bold))
                     .foregroundStyle(Self.ink)
@@ -112,7 +112,7 @@ struct RouletteWheelView: View {
 
                     ZStack {
                         SliceShape(startAngle: start, endAngle: end, radius: radius)
-                            .fill(Theme.sliceColor(at: index))
+                            .fill(Theme.sliceColor(at: index, count: count))
                             .overlay(
                                 SliceShape(startAngle: start, endAngle: end, radius: radius)
                                     .stroke(Self.ink, lineWidth: 2 * scale)

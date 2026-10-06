@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// 盤面のフリックの解釈。指を離す直前の動きから角速度を出し、周回数に写す。
-/// 止まる位置には関与しない（`RouletteMath.nextRotation` に周回数として渡すだけ）。
+/// 止まる位置には関与しない（`RouletteMath.nextRotation` に周回数と向きとして渡すだけ）。
 enum FlickSpin {
     /// ドラッグ中の指の位置と時刻。
     struct Sample: Equatable {
@@ -32,7 +32,20 @@ enum FlickSpin {
         return swept / (last.time - first.time)
     }
 
-    /// 角速度（度/秒）を周回数に写す。回す向きは常に時計回りなので、向きは見ず速さだけを使う。
+    /// フリックで始めるスピンの周回数と向き。
+    struct Spin: Equatable {
+        var fullSpins: Int
+        var direction: SpinDirection
+    }
+
+    /// 角速度（度/秒）を周回数と向きに写す。向きは角速度の符号で決め、正（画面上の時計回り）なら時計回り。
+    /// 閾値未満なら nil（スピンを始めない）。周回数は `fullSpins(angularVelocity:)` と同じ。
+    static func spin(angularVelocity: Double) -> Spin? {
+        guard let fullSpins = fullSpins(angularVelocity: angularVelocity) else { return nil }
+        return Spin(fullSpins: fullSpins, direction: angularVelocity > 0 ? .clockwise : .counterclockwise)
+    }
+
+    /// 角速度（度/秒）を周回数に写す。周回数は向きに依らず速さだけで決める（向きは `spin(angularVelocity:)` が返す）。
     /// 閾値未満なら nil（スピンを始めない）。閾値で最小、`flickMaxAngularVelocity` 以上で最大の周回数になる。
     static func fullSpins(angularVelocity: Double) -> Int? {
         let speed = abs(angularVelocity)

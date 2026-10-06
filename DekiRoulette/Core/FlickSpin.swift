@@ -16,13 +16,14 @@ enum FlickSpin {
     /// 離した瞬間の `DragGesture.Value.velocity` は最後の数サンプルで決まり、離すタイミングで大きく揺れるので使わない。
     /// 中心に近すぎる点は角度が定まらないので除く。
     static func angularVelocity(samples: [Sample], center: CGPoint) -> Double {
-        let usable = samples.filter { distance(from: center, to: $0.location) >= Config.flickDeadZoneRadius }
-        guard let last = usable.last else { return 0 }
-        // 窓の中の点だけを使う。窓をまたぐ区間を足すと、最後に止めていても手前の動きで回ってしまう
-        let windowStart = last.time - Config.flickSampleWindow
-        let firstIndex = usable.firstIndex { $0.time >= windowStart } ?? (usable.count - 1)
-        let recent = usable[firstIndex...]
-        guard let first = recent.first, last.time > first.time else { return 0 }
+        // 窓は指を離した時刻から取り、窓の中の点だけを使う。窓をまたぐ区間や、中心付近で止めていた間より前の動きを
+        // 足すと、最後に止めていても手前の動きで回ってしまう
+        guard let releaseTime = samples.last?.time else { return 0 }
+        let windowStart = releaseTime - Config.flickSampleWindow
+        let recent = samples.filter {
+            $0.time >= windowStart && distance(from: center, to: $0.location) >= Config.flickDeadZoneRadius
+        }
+        guard let first = recent.first, let last = recent.last, last.time > first.time else { return 0 }
 
         var swept = 0.0
         for (from, to) in zip(recent, recent.dropFirst()) {

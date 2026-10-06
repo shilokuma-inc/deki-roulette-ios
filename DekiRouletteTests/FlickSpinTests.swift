@@ -68,6 +68,15 @@ struct FlickSpinTests {
         #expect(FlickSpin.angularVelocity(samples: samples, center: center) == 0)
     }
 
+    @Test func 中心付近で止めてから離すと回さない() {
+        // 速く回したあと中心付近へ指を入れ、窓より長く置いてから離す
+        var samples = arc(degreesPerSecond: 900, duration: 0.2)
+        let last = samples[samples.count - 1]
+        samples.append(FlickSpin.Sample(time: last.time + 1.0 / 60, location: center))
+        samples.append(FlickSpin.Sample(time: last.time + 1.0 / 60 + Config.flickSampleWindow * 1.2, location: center))
+        #expect(FlickSpin.angularVelocity(samples: samples, center: center) == 0)
+    }
+
     @Test func 直線の払いでも中心のまわりの成分を拾う() {
         // 盤面上側を右へまっすぐ 1500pt/秒
         let samples = (0...12).map { step in

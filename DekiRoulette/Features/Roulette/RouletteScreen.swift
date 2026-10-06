@@ -117,18 +117,19 @@ struct RouletteScreen: View {
         }
     }
 
+    /// 「スピン」ボタン。直前のフリックの向きで回す。
     private func spin() {
-        spin(fullSpins: nil)
+        spin(fullSpins: nil, direction: nil)
     }
 
-    /// 盤面のフリック。閾値未満の弱いドラッグでは何もしない。強さは周回数にだけ反映する。
+    /// 盤面のフリック。閾値未満の弱いドラッグでは何もしない。強さは周回数にだけ反映し、フリックした向きに回す。
     private func flick(angularVelocity: Double) {
-        guard let fullSpins = FlickSpin.fullSpins(angularVelocity: angularVelocity) else { return }
-        spin(fullSpins: fullSpins)
+        guard let flick = FlickSpin.spin(angularVelocity: angularVelocity) else { return }
+        spin(fullSpins: flick.fullSpins, direction: flick.direction)
     }
 
-    private func spin(fullSpins: Int?) {
-        guard let next = model.beginSpin(reducedMotion: reduceMotion, fullSpins: fullSpins) else { return }
+    private func spin(fullSpins: Int?, direction: SpinDirection?) {
+        guard let next = model.beginSpin(reducedMotion: reduceMotion, fullSpins: fullSpins, direction: direction) else { return }
         if soundEnabled { sound.play(at: model.clickTimes) }
         if reduceMotion {
             // 動きを減らす設定では回さずに止まる。終了は保険のタイマーが担う

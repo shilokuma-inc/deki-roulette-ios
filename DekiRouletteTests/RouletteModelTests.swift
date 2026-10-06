@@ -205,6 +205,82 @@ struct RouletteModelTests {
         }
     }
 
+    @Test func 反時計回りのフリックでは累積角が減り結果は変わらない() throws {
+        for spins in Config.fullSpinRange {
+            let model = makeModel()
+            model.toggleTarget(id: model.items[1].id)
+            let before = model.rotation
+            let next = try #require(model.beginSpin(reducedMotion: false, fullSpins: spins, direction: .counterclockwise))
+            #expect(before - next >= Double(spins) * 360 + 10)
+            #expect(before - next < Double(spins) * 360 + 370)
+            model.rotation = next
+            model.finishSpin()
+            #expect(model.outcome == SpinOutcome(index: 1, label: "B"))
+            #expect(RouletteMath.indexUnderPointer(rotation: model.rotation, count: 4) == 1)
+        }
+    }
+
+    @Test func 向きを変えても指定がなければ結果は針の下の項目と一致する() throws {
+        let model = makeModel()
+        for round in 0..<50 {
+            let direction: SpinDirection = round.isMultiple(of: 2) ? .counterclockwise : .clockwise
+            let next = try #require(model.beginSpin(reducedMotion: false, fullSpins: 4, direction: direction))
+            model.rotation = next
+            model.finishSpin()
+            let outcome = try #require(model.outcome)
+            #expect(outcome.index == RouletteMath.indexUnderPointer(rotation: next, count: 4))
+        }
+    }
+
+    @Test func ボタンは初めは時計回りに回す() throws {
+        let model = makeModel()
+        #expect(model.lastDirection == .clockwise)
+        let next = try #require(model.beginSpin(reducedMotion: false))
+        #expect(next > 0)
+    }
+
+    @Test func ボタンは直前のフリックの向きを引き継ぐ() throws {
+        let model = makeModel()
+        model.rotation = try #require(model.beginSpin(reducedMotion: false, fullSpins: 4, direction: .counterclockwise))
+        model.finishSpin()
+        #expect(model.lastDirection == .counterclockwise)
+
+        var before = model.rotation
+        model.rotation = try #require(model.beginSpin(reducedMotion: false))
+        #expect(model.rotation < before)
+        model.finishSpin()
+
+        model.rotation = try #require(model.beginSpin(reducedMotion: false, fullSpins: 4, direction: .clockwise))
+        model.finishSpin()
+        before = model.rotation
+        model.rotation = try #require(model.beginSpin(reducedMotion: false))
+        #expect(model.rotation > before)
+    }
+
+    @Test func 始められなかったフリックの向きは引き継がない() {
+        let model = makeModel()
+        #expect(model.beginSpin(reducedMotion: false) != nil)
+        // スピン中のフリックでは始まらないので、向きも覚えない
+        #expect(model.beginSpin(reducedMotion: false, fullSpins: 4, direction: .counterclockwise) == nil)
+        #expect(model.lastDirection == .clockwise)
+    }
+
+    @Test func 反時計回りでもクリック音と触覚の時刻が出る() async throws {
+        let model = makeModel()
+        let from = model.rotation
+        let next = try #require(model.beginSpin(reducedMotion: false, fullSpins: 4, direction: .counterclockwise))
+        #expect(!model.clickTimes.isEmpty)
+        #expect(model.clickTimes == model.clickTimes.sorted())
+        #expect(model.clickTimes.last! <= Config.spinDuration)
+        let expected = HapticSchedule.boundaryCrossings(
+            from: from, to: next, count: 4, duration: Config.spinDuration,
+            easing: Config.spinEasing, minInterval: Config.hapticMinInterval
+        )
+        #expect(!expected.isEmpty)
+        try await Task.sleep(for: .seconds(Config.spinDuration + 0.3))
+        #expect(model.boundaryTick == expected.count)
+    }
+
     @Test func 境目を越えるたびに刻まれる() async throws {
         let model = makeModel()
         let from = model.rotation

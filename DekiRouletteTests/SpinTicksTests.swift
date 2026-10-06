@@ -66,9 +66,42 @@ struct SpinTicksTests {
 
     @Test func 回らないときや項目が無いときは鳴らない() {
         #expect(crossings(to: 0, count: 4).isEmpty)
-        #expect(crossings(from: 100, to: 50, count: 4).isEmpty)
+        #expect(crossings(from: 100, to: 100, count: 4).isEmpty)
         #expect(crossings(to: 360, count: 0).isEmpty)
+        #expect(crossings(to: -360, count: 0).isEmpty)
+        #expect(crossings(to: -10, count: 4).isEmpty)
+        #expect(crossings(to: -360, count: 4, duration: 0).isEmpty)
         #expect(crossings(to: 10, count: 4).isEmpty)
         #expect(crossings(to: 360, count: 4, duration: 0).isEmpty)
+    }
+
+    @Test func 反時計回りでもまたいだ境目の数だけ鳴る() {
+        #expect(crossings(to: -360, count: 4).count == 4)
+        #expect(crossings(to: -720, count: 4).count == 8)
+        #expect(crossings(from: -45, to: -405, count: 4).count == 4)
+        #expect(crossings(from: 100, to: 50, count: 4).count == 1)
+    }
+
+    @Test func 反時計回りの時刻は時計回りと対称になる() {
+        let forward = crossings(from: 37, to: 1867, count: 8, minInterval: Config.clickMinInterval)
+        let backward = crossings(from: -37, to: -1867, count: 8, minInterval: Config.clickMinInterval)
+        #expect(!backward.isEmpty)
+        #expect(backward == forward)
+    }
+
+    @Test func 反時計回りでも鳴る瞬間に針の下のスライスが切り替わる() {
+        let from = 200.0
+        let to = from - 1830
+        let count = 8
+        let times = crossings(from: from, to: to, count: count)
+        #expect(!times.isEmpty)
+        #expect(times == times.sorted())
+        #expect(times.last! <= Config.spinDuration)
+        for time in times {
+            let angle = from + (to - from) * easing.progress(atTime: time / Config.spinDuration)
+            let before = RouletteMath.indexUnderPointer(rotation: angle + 0.05, count: count)
+            let after = RouletteMath.indexUnderPointer(rotation: angle - 0.05, count: count)
+            #expect(before != after)
+        }
     }
 }

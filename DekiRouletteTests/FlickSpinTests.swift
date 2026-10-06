@@ -159,4 +159,35 @@ struct FlickSpinTests {
             previous = spins
         }
     }
+
+    // MARK: 向き
+
+    @Test func 時計回りのフリックは時計回りに回す() {
+        let spin = FlickSpin.spin(angularVelocity: Config.flickMinAngularVelocity)
+        #expect(spin == FlickSpin.Spin(fullSpins: Config.fullSpinRange.lowerBound, direction: .clockwise))
+    }
+
+    @Test func 反時計回りのフリックは反時計回りに回す() {
+        let spin = FlickSpin.spin(angularVelocity: -Config.flickMaxAngularVelocity)
+        #expect(spin == FlickSpin.Spin(fullSpins: Config.fullSpinRange.upperBound, direction: .counterclockwise))
+    }
+
+    @Test func 向きを返しても閾値と周回数は変わらない() {
+        #expect(FlickSpin.spin(angularVelocity: 0) == nil)
+        #expect(FlickSpin.spin(angularVelocity: Config.flickMinAngularVelocity - 1) == nil)
+        #expect(FlickSpin.spin(angularVelocity: -(Config.flickMinAngularVelocity - 1)) == nil)
+        for speed in stride(from: Config.flickMinAngularVelocity, through: Config.flickMaxAngularVelocity + 500, by: 10) {
+            #expect(FlickSpin.spin(angularVelocity: speed)?.fullSpins == FlickSpin.fullSpins(angularVelocity: speed))
+            #expect(FlickSpin.spin(angularVelocity: -speed)?.fullSpins == FlickSpin.fullSpins(angularVelocity: -speed))
+            #expect(FlickSpin.spin(angularVelocity: speed)?.direction == .clockwise)
+            #expect(FlickSpin.spin(angularVelocity: -speed)?.direction == .counterclockwise)
+        }
+    }
+
+    @Test func 反時計回りに払った記録から反時計回りの向きが出る() {
+        let velocity = FlickSpin.angularVelocity(samples: arc(degreesPerSecond: -900, duration: 0.2), center: center)
+        #expect(FlickSpin.spin(angularVelocity: velocity)?.direction == .counterclockwise)
+        let clockwise = FlickSpin.angularVelocity(samples: arc(degreesPerSecond: 900, duration: 0.2), center: center)
+        #expect(FlickSpin.spin(angularVelocity: clockwise)?.direction == .clockwise)
+    }
 }

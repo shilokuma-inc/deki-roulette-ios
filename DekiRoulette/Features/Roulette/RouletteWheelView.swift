@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 盤面の描画。回転は親が `rotation` を書き換え、このビューは `rotationEffect` で受ける。
+/// 盤面の描画。回転は親が `rotation` を書き換え、このビューは `rotationEffect` で受ける（補間の曲線はこのビューが保証する）。
 /// 角度は 12 時を 0 度として時計回りに数える。針は 12 時に固定。
 ///
 /// `highlightedIndex` を渡すと、そのスライスを止まった位置として強調する（他を暗くし、渡された瞬間に
@@ -29,6 +29,10 @@ struct RouletteWheelView: View {
                     .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
             }
             .rotationEffect(.degrees(rotation))
+            // キーボードが出た状態で始めると、演出開始で入力欄が無効になってキーボードが閉じ、その安全領域の変化が
+            // `withAnimation` の更新に重なって補間が落ちる（盤面が最終角度へ飛び、音だけが鳴る）。回転の値の変化だけは
+            // 外側のトランザクションに依らずスピンの曲線で補間させる。動きを減らす設定では親が値を直接書くので付けない
+            .animation(reduceMotion ? nil : Theme.spinAnimation, value: rotation)
             .shadow(color: Theme.wheelShadow, radius: 15, y: 10)
 
             pointer

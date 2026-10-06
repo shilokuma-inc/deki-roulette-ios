@@ -25,6 +25,9 @@ final class RouletteModel {
     /// スピン中にクリック音を鳴らす時刻（開始からの秒）。View が再生に渡す。
     private(set) var clickTimes: [TimeInterval] = []
 
+    /// 始めたスピンの回数。同じラベルが続けて出ても結果表示を出し直すための識別子に使う（`rotation` は指で動かしても変わるため使わない）。
+    private(set) var spinCount = 0
+
     /// 直前のフリックの向き。「スピン」ボタンはこの向きで回す。保存しないので起動ごとに時計回りから始まる。
     private(set) var lastDirection: SpinDirection = .clockwise
 
@@ -129,6 +132,13 @@ final class RouletteModel {
         outcome = nil
     }
 
+    /// 指で回した分だけ盤面を回す（ドラッグの追従を取り込む）。演出中は動かさない。
+    /// 次のスピンはこの角度から始まり、止まる累積角・回転音・触覚の時刻もここから求める。結果の決まり方は変わらない。
+    func rotate(by delta: Double) {
+        guard !spinning, delta != 0 else { return }
+        rotation += delta
+    }
+
     /// スピンを開始し、盤面が止まるべき累積回転角を返す。回せないときは nil。
     /// 呼び出し側はこの値を `rotation` にアニメーション付きで反映し、
     /// アニメーション完了時に `finishSpin()` を呼ぶ。
@@ -157,6 +167,7 @@ final class RouletteModel {
         pendingOutcome = SpinOutcome(index: targetIndex, label: items[targetIndex].label)
         outcome = nil
         spinning = true
+        spinCount += 1
 
         // 補間中の角度は observable でないので、境目を越える時刻を先に求めておく。
         // 動きを減らす設定では盤面が回らないので鳴らさない

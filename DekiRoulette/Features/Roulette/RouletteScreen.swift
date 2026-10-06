@@ -68,7 +68,8 @@ struct RouletteScreen: View {
                 rotation: model.rotation,
                 // 結果が出ている間だけ止まったスライスを強調する。項目を触って結果が消えれば強調も解ける
                 highlightedIndex: model.outcome?.index,
-                onFlick: flick
+                interactive: !model.spinning,
+                onRelease: release
             )
             .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
 
@@ -88,7 +89,7 @@ struct RouletteScreen: View {
                 if let outcome = model.outcome, !model.spinning {
                     let text = ResultText.roulette(label: outcome.label, heading: L10n.resultHeading)
                     ResultActions(copyText: text, shareText: ResultText.share(text, appName: L10n.appName))
-                        .id(outcome.label + "\(model.rotation)")
+                        .id(outcome.label + "\(model.spinCount)")
                 }
             }
             .frame(height: 32)
@@ -109,7 +110,7 @@ struct RouletteScreen: View {
                 .background(color.opacity(0.1), in: .rect(cornerRadius: 16))
                 .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(color.opacity(0.6), lineWidth: 1))
                 .revealOnAppear(reducedMotion: reduceMotion)
-                .id(outcome.label + "\(model.rotation)")
+                .id(outcome.label + "\(model.spinCount)")
         } else {
             Text(model.spinning ? L10n.spinning : L10n.resultPlaceholder)
                 .font(.caption)
@@ -122,7 +123,15 @@ struct RouletteScreen: View {
         spin(fullSpins: nil, direction: nil)
     }
 
-    /// 盤面のフリック。閾値未満の弱いドラッグでは何もしない。強さは周回数にだけ反映し、フリックした向きに回す。
+    /// 盤面から指を離した。追従で回した角度を取り込み、その角度からフリックのスピンを始める。
+    /// `dragRotation` の取り込みとスピンの開始は同じ更新に入れる（盤面が離した位置から回り出す）。
+    private func release(angularVelocity: Double, dragRotation: Double) {
+        model.rotate(by: dragRotation)
+        flick(angularVelocity: angularVelocity)
+    }
+
+    /// 盤面のフリック。閾値未満の弱いドラッグではスピンを始めない（盤面は指を離した角度のまま）。
+    /// 強さは周回数にだけ反映し、フリックした向きに回す。
     private func flick(angularVelocity: Double) {
         guard let flick = FlickSpin.spin(angularVelocity: angularVelocity) else { return }
         spin(fullSpins: flick.fullSpins, direction: flick.direction)

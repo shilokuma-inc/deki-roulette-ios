@@ -21,13 +21,15 @@ enum FlickSpin {
         guard let releaseTime = samples.last?.time else { return 0 }
         let windowStart = releaseTime - Config.flickSampleWindow
         let recent = samples.filter {
-            $0.time >= windowStart && distance(from: center, to: $0.location) >= Config.flickDeadZoneRadius
+            $0.time >= windowStart && WheelDrag.distance(from: center, to: $0.location) >= Config.flickDeadZoneRadius
         }
         guard let first = recent.first, let last = recent.last, last.time > first.time else { return 0 }
 
         var swept = 0.0
         for (from, to) in zip(recent, recent.dropFirst()) {
-            swept += normalized(angle(of: to.location, around: center) - angle(of: from.location, around: center))
+            swept += WheelDrag.normalized(
+                WheelDrag.angle(of: to.location, around: center) - WheelDrag.angle(of: from.location, around: center)
+            )
         }
         return swept / (last.time - first.time)
     }
@@ -55,23 +57,6 @@ enum FlickSpin {
         let range = Config.fullSpinRange
         let ratio = min((speed - low) / (high - low), 1)
         return range.lowerBound + Int((ratio * Double(range.count - 1)).rounded())
-    }
-
-    /// 中心から見た向き（度）。SwiftUI は y 軸が下向きなので、値が増える向きが画面上の時計回りになる。
-    private static func angle(of point: CGPoint, around center: CGPoint) -> Double {
-        atan2(Double(point.y - center.y), Double(point.x - center.x)) * 180 / .pi
-    }
-
-    /// 隣り合う 2 点の角度差を -180〜180 度に収める。±180 度をまたいでも 1 周分跳ねないようにする。
-    private static func normalized(_ delta: Double) -> Double {
-        var value = delta.truncatingRemainder(dividingBy: 360)
-        if value > 180 { value -= 360 }
-        if value <= -180 { value += 360 }
-        return value
-    }
-
-    private static func distance(from a: CGPoint, to b: CGPoint) -> Double {
-        hypot(Double(b.x - a.x), Double(b.y - a.y))
     }
 }
 

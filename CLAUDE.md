@@ -48,7 +48,9 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 
 盤面は 12 時を 0 度、時計回り。`SliceShape` は `clockwise: false` で画面上は時計回りになる（y 軸が下向きのため）。
 
-盤面のフリックでも始められる。`RouletteWheelView` が指を離した時点の角速度を `FlickSpin.angularVelocity` で出し、
+盤面のフリックでも始められる。`RouletteWheelView` がドラッグ中の位置を `FlickSampleBuffer` に記録し、指を離す直前
+`Config.flickSampleWindow` に中心のまわりを回った角度から `FlickSpin.angularVelocity` で角速度を出す（離した瞬間の
+`velocity` は揺れが大きく、同じフリックでも回らないことがあるので使わない）。それを
 `FlickSpin.fullSpins` で周回数に写して `beginSpin(reducedMotion:fullSpins:)` に渡す（閾値未満は何もしない）。
 強さは周回数にだけ効き、止まる位置の式は変えない。停止後は `outcome.index` を `highlightedIndex` として渡し、
 他のスライスを `Theme.sliceDim` で沈める。押し出しと針の跳ねは停止の瞬間だけで、`accessibilityReduceMotion` では省く。

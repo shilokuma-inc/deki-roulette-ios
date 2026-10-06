@@ -50,8 +50,11 @@ enum Config {
     /// 周回数が上限に達する角速度（度/秒）。これ以上はすべて最大の周回数になる。
     static let flickMaxAngularVelocity: Double = 1800
 
-    /// 盤面中心からこの半径（pt）の内側では角速度が発散するので、フリックとして扱わない。
+    /// 盤面中心からこの半径（pt）の内側では角度が定まらないので、フリックの計算に使わない。
     static let flickDeadZoneRadius: Double = 24
+
+    /// フリックの角速度を、指を離す直前のこの時間（秒）に回った角度から求める。
+    static let flickSampleWindow: TimeInterval = 0.15
 
     /// 削除した項目を「元に戻す」で戻せる時間。過ぎると削除が確定する。
     static let undoDuration: TimeInterval = 5

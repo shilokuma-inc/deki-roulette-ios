@@ -5,7 +5,7 @@ import SwiftUI
 ///
 /// `highlightedIndex` を渡すと、そのスライスを止まった位置として強調する（他を暗くし、渡された瞬間に
 /// 短く押し出して針を跳ねさせる）。nil に戻すと強調も解ける。
-/// フリックは `onFlick` に角速度（度/秒、時計回りが正）で伝える。盤面は指に追従させない。
+/// フリックは指を離す直前の動きから角速度（度/秒、時計回りが正）を出して `onFlick` に伝える。盤面は指に追従させない。
 struct RouletteWheelView: View {
     let items: [Item]
     let rotation: Double
@@ -14,6 +14,7 @@ struct RouletteWheelView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulsing = false
+    @State private var flickSamples = FlickSampleBuffer()
 
     /// 線幅・縁・ハブはこの直径を 1 として `scale` で比例させる。ラベルの文字サイズと省略は `WheelLabel` に任せる。
     private static let referenceSize = CGFloat(WheelLabel.referenceDiameter)
@@ -67,8 +68,13 @@ struct RouletteWheelView: View {
 
     private func flickGesture(center: CGPoint) -> some Gesture {
         DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                flickSamples.append(FlickSpin.Sample(time: value.time.timeIntervalSinceReferenceDate, location: value.location))
+            }
             .onEnded { value in
-                let velocity = FlickSpin.angularVelocity(location: value.location, velocity: value.velocity, center: center)
+                flickSamples.append(FlickSpin.Sample(time: value.time.timeIntervalSinceReferenceDate, location: value.location))
+                let velocity = FlickSpin.angularVelocity(samples: flickSamples.samples, center: center)
+                flickSamples.reset()
                 onFlick?(velocity)
             }
     }

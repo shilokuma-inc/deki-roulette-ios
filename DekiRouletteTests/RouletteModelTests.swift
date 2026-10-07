@@ -306,6 +306,40 @@ struct RouletteModelTests {
         }
     }
 
+    @Test func フリックの初速は曲線にだけ効き結果は変わらない() throws {
+        var rng = SeededGenerator(seed: 5)
+        let model = makeModel()
+        model.toggleTarget(id: model.items[1].id)
+        for _ in 0..<50 {
+            let velocity = Double.random(in: -4000...4000, using: &rng)
+            let direction: SpinDirection = velocity < 0 ? .counterclockwise : .clockwise
+            let from = model.rotation
+            let next = try #require(model.beginSpin(
+                reducedMotion: false, fullSpins: 5, direction: direction, releaseVelocity: velocity
+            ))
+            let easing = FlickSpin.easing(angularVelocity: velocity, distance: abs(next - from), duration: Config.spinDuration)
+            #expect(model.spinEasing == easing)
+            // 回転音の時刻も同じ曲線から逆算する（見た目とずれない）
+            #expect(model.clickTimes == SpinTicks.boundaryCrossings(
+                from: from, to: next, count: 4, duration: Config.spinDuration,
+                easing: easing, minInterval: Config.clickMinInterval
+            ))
+            model.rotation = next
+            model.finishSpin()
+            #expect(model.outcome == SpinOutcome(index: 1, label: "B"))
+            #expect(RouletteMath.indexUnderPointer(rotation: model.rotation, count: 4) == 1)
+        }
+    }
+
+    @Test func ボタンのスピンは基準の曲線で回す() throws {
+        let model = makeModel()
+        model.rotation = try #require(model.beginSpin(reducedMotion: false, fullSpins: 4, releaseVelocity: 1500))
+        model.finishSpin()
+        #expect(model.spinEasing != Config.spinEasing)
+        _ = try #require(model.beginSpin(reducedMotion: false))
+        #expect(model.spinEasing == Config.spinEasing)
+    }
+
     @Test func 演出中は指で回せない() {
         let model = makeModel()
         let next = model.beginSpin(reducedMotion: false)!

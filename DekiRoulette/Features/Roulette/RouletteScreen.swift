@@ -69,6 +69,7 @@ struct RouletteScreen: View {
                 // 結果が出ている間だけ止まったスライスを強調する。項目を触って結果が消えれば強調も解ける
                 highlightedIndex: model.outcome?.index,
                 interactive: !model.spinning,
+                spinEasing: model.spinEasing,
                 onRelease: release
             )
             .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
@@ -120,7 +121,7 @@ struct RouletteScreen: View {
 
     /// 「スピン」ボタン。直前のフリックの向きで回す。
     private func spin() {
-        spin(fullSpins: nil, direction: nil)
+        spin(fullSpins: nil, direction: nil, releaseVelocity: nil)
     }
 
     /// 盤面から指を離した。追従で回した角度を取り込み、その角度からフリックのスピンを始める。
@@ -131,20 +132,22 @@ struct RouletteScreen: View {
     }
 
     /// 盤面のフリック。閾値未満の弱いドラッグではスピンを始めない（盤面は指を離した角度のまま）。
-    /// 強さは周回数にだけ反映し、フリックした向きに回す。
+    /// 強さは周回数にだけ反映し、フリックした向きに回す。盤面は離した瞬間の速さで回り出し、そこから減速する。
     private func flick(angularVelocity: Double) {
         guard let flick = FlickSpin.spin(angularVelocity: angularVelocity) else { return }
-        spin(fullSpins: flick.fullSpins, direction: flick.direction)
+        spin(fullSpins: flick.fullSpins, direction: flick.direction, releaseVelocity: angularVelocity)
     }
 
-    private func spin(fullSpins: Int?, direction: SpinDirection?) {
-        guard let next = model.beginSpin(reducedMotion: reduceMotion, fullSpins: fullSpins, direction: direction) else { return }
+    private func spin(fullSpins: Int?, direction: SpinDirection?, releaseVelocity: Double?) {
+        guard let next = model.beginSpin(
+            reducedMotion: reduceMotion, fullSpins: fullSpins, direction: direction, releaseVelocity: releaseVelocity
+        ) else { return }
         if soundEnabled { sound.play(at: model.clickTimes) }
         if reduceMotion {
             // 動きを減らす設定では回さずに止まる。終了は保険のタイマーが担う
             model.rotation = next
         } else {
-            withAnimation(Theme.spinAnimation) {
+            withAnimation(Theme.spinAnimation(easing: model.spinEasing)) {
                 model.rotation = next
             } completion: {
                 model.finishSpin()

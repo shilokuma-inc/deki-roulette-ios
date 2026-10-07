@@ -8,11 +8,13 @@ import SwiftUI
 /// ドラッグ中は盤面を指に追従させ（`WheelDrag`）、指を離したら、追従で回した角度と、離す直前の動きから出した
 /// 角速度（度/秒、時計回りが正）を `onRelease` に伝える。追従した角度は親が `rotation` に取り込むまでこのビューが持つ。
 /// `interactive` が false の間（演出中）は追従もフリックもしない。
+/// `spinEasing` はスピンの曲線。フリックでは離した瞬間の速さに合わせて親が決める（ボタンでは `Config.spinEasing`）。
 struct RouletteWheelView: View {
     let items: [Item]
     let rotation: Double
     var highlightedIndex: Int? = nil
     var interactive = true
+    var spinEasing = Config.spinEasing
     var onRelease: ((_ angularVelocity: Double, _ dragRotation: Double) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -46,8 +48,9 @@ struct RouletteWheelView: View {
             .rotationEffect(.degrees(rotation + dragRotation))
             // キーボードが出た状態で始めると、演出開始で入力欄が無効になってキーボードが閉じ、その安全領域の変化が
             // `withAnimation` の更新に重なって補間が落ちる（盤面が最終角度へ飛び、音だけが鳴る）。回転の値の変化だけは
-            // 外側のトランザクションに依らずスピンの曲線で補間させる。動きを減らす設定では親が値を直接書くので付けない
-            .animation(reduceMotion ? nil : Theme.spinAnimation, value: rotation)
+            // 外側のトランザクションに依らずスピンの曲線で補間させる。曲線は親の `withAnimation` と同じ `spinEasing`。
+            // 動きを減らす設定では親が値を直接書くので付けない
+            .animation(reduceMotion ? nil : Theme.spinAnimation(easing: spinEasing), value: rotation)
             .shadow(color: Theme.wheelShadow, radius: 15, y: 10)
 
             pointer

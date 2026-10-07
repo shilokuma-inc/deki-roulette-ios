@@ -170,6 +170,58 @@ struct FlickSpinTests {
         }
     }
 
+    // MARK: 初速
+
+    /// 曲線 `easing` で `distance` 度を `duration` 秒かけて回すときの、回り始めの角速度（度/秒）。
+    private func initialSpeed(_ easing: CubicBezierCurve, distance: Double, duration: TimeInterval) -> Double {
+        let dt = 1e-5
+        return easing.progress(atTime: dt) * distance / (dt * duration)
+    }
+
+    @Test func 盤面は指を離した瞬間の速さで回り出す() {
+        for velocity in [Config.flickMinAngularVelocity, 600, 1200, -900] {
+            let distance = 4.0 * 360 + 135
+            let easing = FlickSpin.easing(angularVelocity: velocity, distance: distance, duration: Config.spinDuration)
+            let speed = initialSpeed(easing, distance: distance, duration: Config.spinDuration)
+            #expect(abs(speed - abs(velocity)) / abs(velocity) < 0.01)
+        }
+    }
+
+    @Test func 初速は向きに依らず速さで決める() {
+        let distance = 6.0 * 360 + 40
+        #expect(
+            FlickSpin.easing(angularVelocity: 800, distance: distance, duration: Config.spinDuration)
+                == FlickSpin.easing(angularVelocity: -800, distance: distance, duration: Config.spinDuration)
+        )
+    }
+
+    @Test func 初速を変えても止まり方と長さの前提は同じ() {
+        let easing = FlickSpin.easing(angularVelocity: 1000, distance: 2000, duration: Config.spinDuration)
+        // 始点の傾き以外は基準の曲線のまま。終わりの減速の形と、時刻 1 で止まることは変わらない
+        #expect(easing.x1 == Config.spinEasing.x1)
+        #expect(easing.x2 == Config.spinEasing.x2)
+        #expect(easing.y2 == Config.spinEasing.y2)
+        #expect(easing.progress(atTime: 1) == 1)
+    }
+
+    @Test func 速すぎるフリックは曲線が保てる初速で頭打ちになる() {
+        let easing = FlickSpin.easing(angularVelocity: 100_000, distance: 1500, duration: Config.spinDuration)
+        #expect(easing.y1 == 1)
+    }
+
+    @Test func 初速を変えた曲線も単調に進む() {
+        for velocity in stride(from: Config.flickMinAngularVelocity, through: 6000, by: 240) {
+            let easing = FlickSpin.easing(angularVelocity: velocity, distance: 4 * 360 + 10, duration: Config.spinDuration)
+            var previous = 0.0
+            for step in 1...200 {
+                let progress = easing.progress(atTime: Double(step) / 200)
+                #expect(progress >= previous)
+                previous = progress
+            }
+            #expect(abs(previous - 1) < 1e-9)
+        }
+    }
+
     // MARK: 向き
 
     @Test func 時計回りのフリックは時計回りに回す() {

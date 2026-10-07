@@ -55,6 +55,21 @@ enum FlickSpin {
         let ratio = min((speed - low) / (high - low), 1)
         return range.lowerBound + Int((ratio * Double(range.count - 1)).rounded())
     }
+
+    /// フリックで始めるスピンの曲線。指を離した瞬間の角速度（度/秒）と盤面の初速がつながるよう、`base` の始点の傾きだけを変える。
+    /// 長さ `duration` と終わりの形（`x2`, `y2`）は `base` のままなので、止まる位置・止まるまでの時間・減速の終わり方は変わらない。
+    /// `distance` はスピンで回る角度（度、向きに依らず正）。
+    ///
+    /// 曲線の始点の傾き `y1 / x1` が、平均の速さ `distance / duration` に対する初速の倍率になる。`x1` は変えずに `y1` を決め、
+    /// 0...1 に収める（曲線が単調なまま。速すぎるフリックは `y1 = 1` の初速で頭打ちになる）。
+    static func easing(
+        angularVelocity: Double, distance: Double, duration: TimeInterval, base: CubicBezierCurve = Config.spinEasing
+    ) -> CubicBezierCurve {
+        guard distance > 0, duration > 0, base.x1 > 0 else { return base }
+        let slope = abs(angularVelocity) * duration / distance
+        let y1 = min(max(slope * base.x1, 0), 1)
+        return CubicBezierCurve(base.x1, y1, base.x2, base.y2)
+    }
 }
 
 /// フリック中の位置の記録。指が動くたびに足すので、書き換えても View を描き直さないよう参照型で持つ。

@@ -7,7 +7,6 @@ enum L10n {
     static var tagline: String { tr("tagline") }
     static var spin: String { tr("spin") }
     static var spinning: String { tr("spinning") }
-    static var resultPlaceholder: String { tr("resultPlaceholder") }
     static func resultAnnounce(_ label: String) -> String { fmt("resultAnnounce", label) }
     static var itemListTitle: String { tr("itemListTitle") }
     static var addPlaceholder: String { tr("addPlaceholder") }

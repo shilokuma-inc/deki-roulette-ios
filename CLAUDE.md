@@ -31,7 +31,7 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
   `ThemeContrastTests` でコントラスト比を検証する。
 - スライス色は必ず件数つきで引く（`Theme.sliceColor(at:count:)` / `sliceAccent(at:count:)`）。添字は
   `SlicePalette`（`Core/`）が決め、件数が `n % 色数 == 1` のときだけ末尾をずらして環の継ぎ目が同じ色にならないようにする。
-  盤面の塗り（`RouletteWheelView`）・行の色見本（`ItemListView`）・結果表示の枠（`RouletteScreen`）は同じ関数で引く。
+  盤面の塗り（`RouletteWheelView`）・行の色見本（`ItemListView`）・結果の帯の枠（`RouletteScreen`）は同じ関数で引く。
 - レイアウトの寸法（盤面の上限、横並びの列幅、ページ幅）は `Theme.Layout` に置く。`horizontalSizeClass == .regular`
   で横並びになり、盤面は 480pt まで広がる。盤面ラベルの省略と文字サイズは `WheelLabel`（`Core/`）が直径から決める。
 - 項目リストは `ItemStore`（`Core/`）が画面ごとに `UserDefaults` へ保存する。保存するのは `id` と `label` だけで、

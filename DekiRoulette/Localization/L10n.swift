@@ -16,6 +16,7 @@ enum L10n {
     static func atCapacity(_ max: Int) -> String { fmt("atCapacity", max) }
     static func itemCount(_ count: Int, _ max: Int) -> String { fmt("itemCount", count, max) }
     static func removeAccessibilityLabel(_ label: String) -> String { fmt("removeAccessibilityLabel", label) }
+    static var duplicateLabelNotice: String { tr("duplicateLabelNotice") }
     static var helpTitle: String { tr("helpTitle") }
     static var helpBasic: String { tr("helpBasic") }
     static var helpAimTitle: String { tr("helpAimTitle") }
@@ -69,6 +70,10 @@ enum L10n {
     static var copyrightTitle: String { tr("copyrightTitle") }
     static var copyrightOwner: String { tr("copyrightOwner") }
     static func addItemsButton(_ count: Int) -> String { plural("addItemsButton", count) }
+    static var duplicateAddTitle: String { tr("duplicateAddTitle") }
+    static var duplicateAddMessage: String { tr("duplicateAddMessage") }
+    static var duplicateAddConfirm: String { tr("duplicateAddConfirm") }
+    static var duplicateAddCancel: String { tr("duplicateAddCancel") }
     static var resetItemsTitle: String { tr("resetItemsTitle") }
     static var resetItemsDescription: String { tr("resetItemsDescription") }
     static var resetItemsRoulette: String { tr("resetItemsRoulette") }

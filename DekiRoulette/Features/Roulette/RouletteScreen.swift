@@ -69,8 +69,11 @@ struct RouletteScreen: View {
     private var wheelSection: some View {
         VStack(spacing: 24) {
             wheel
-            // 帯は回転しない層に置く（盤面の `rotationEffect` の外側）。盤面のフリックを妨げないよう触れられなくする
-            .overlay(alignment: .top) { resultBand }
+            // 帯は回転しない層に置く（盤面の `rotationEffect` の外側）。盤面のフリックを妨げないよう触れられなくする。
+            // 3D 表示では帯を盤と同じ面に乗せるので、3D の盤面が自分で描く
+            .overlay(alignment: .top) {
+                if !wheel3DEnabled { resultBand }
+            }
             .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
 
             PrimaryActionButton(
@@ -97,7 +100,12 @@ struct RouletteScreen: View {
     @ViewBuilder
     private var wheel: some View {
         if wheel3DEnabled {
-            Wheel3DView(items: model.items, rotation: model.rotation, spinEasing: model.spinEasing)
+            Wheel3DView(
+                items: model.items,
+                rotation: model.rotation,
+                spinEasing: model.spinEasing,
+                result: wheel3DResult
+            )
         } else {
             RouletteWheelView(
                 items: model.items,
@@ -113,6 +121,17 @@ struct RouletteScreen: View {
         }
     }
 
+    /// 3D の盤面に乗せる結果の帯。2D の帯と同じく結果が出ている間だけ出し、`spinCount` 基準で出し直す。
+    private var wheel3DResult: Wheel3DResult? {
+        guard let outcome = model.outcome, !model.spinning else { return nil }
+        return Wheel3DResult(
+            id: outcome.label + "\(model.spinCount)",
+            label: outcome.label,
+            // 項目を変えると `outcome` は消えるので、件数はスピン開始時と同じ
+            accent: Theme.sliceColor(at: outcome.index, count: model.items.count)
+        )
+    }
+
     /// 針のすぐ下に重ねる結果の帯。盤面の下に結果の領域は持たず、結果のラベルはここで全文を出す（盤面のラベルは省略される）。
     /// 出し直しは `spinCount` 基準で、指で盤面を動かしても出し直さない。
     /// 盤面と同じく装飾扱いで読み上げない（結果は Announcement で伝える）。
@@ -121,22 +140,12 @@ struct RouletteScreen: View {
         if let outcome = model.outcome, !model.spinning {
             GeometryReader { proxy in
                 let diameter = Double(min(proxy.size.width, proxy.size.height))
-                let scale = diameter / WheelLabel.referenceDiameter
-                Text(outcome.label)
-                    .font(.system(size: ResultBand.fontSize(diameter: diameter), weight: .black))
-                    .foregroundStyle(Theme.resultBandInk)
-                    .lineLimit(1)
-                    .minimumScaleFactor(ResultBand.minimumScaleFactor)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, 14 * scale)
-                    .padding(.vertical, 5 * scale)
-                    .background(Theme.resultBandFill, in: .capsule)
+                ResultBandLabel(
+                    label: outcome.label,
                     // 項目を変えると `outcome` は消えるので、件数はスピン開始時と同じ
-                    .overlay(
-                        Capsule().strokeBorder(Theme.sliceColor(at: outcome.index, count: model.items.count), lineWidth: 2 * scale)
-                    )
-                    .shadow(color: Theme.resultBandShadow, radius: 4 * scale, y: 2 * scale)
-                    .frame(maxWidth: ResultBand.maxWidth(diameter: diameter))
+                    accent: Theme.sliceColor(at: outcome.index, count: model.items.count),
+                    diameter: diameter
+                )
                     .frame(maxWidth: .infinity)
                     .padding(.top, ResultBand.top(diameter: diameter, pointerBounce: Theme.pointerBounceOffset))
                     .revealOnAppear(reducedMotion: reduceMotion)
@@ -190,6 +199,30 @@ struct RouletteScreen: View {
                 model.finishSpin()
             }
         }
+    }
+}
+
+/// 結果の帯の見た目。2D では盤面に重ね、3D では画像に焼いて盤と同じ面に貼る（`Wheel3DView`）。
+/// 寸法は `ResultBand`、色は `Theme.resultBand*` で、枠は止まったスライスの塗り（`accent`）。
+struct ResultBandLabel: View {
+    let label: String
+    let accent: Color
+    let diameter: Double
+
+    var body: some View {
+        let scale = diameter / WheelLabel.referenceDiameter
+        Text(label)
+            .font(.system(size: ResultBand.fontSize(diameter: diameter), weight: .black))
+            .foregroundStyle(Theme.resultBandInk)
+            .lineLimit(1)
+            .minimumScaleFactor(ResultBand.minimumScaleFactor)
+            .truncationMode(.tail)
+            .padding(.horizontal, 14 * scale)
+            .padding(.vertical, 5 * scale)
+            .background(Theme.resultBandFill, in: .capsule)
+            .overlay(Capsule().strokeBorder(accent, lineWidth: 2 * scale))
+            .shadow(color: Theme.resultBandShadow, radius: 4 * scale, y: 2 * scale)
+            .frame(maxWidth: ResultBand.maxWidth(diameter: diameter))
     }
 }
 

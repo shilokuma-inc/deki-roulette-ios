@@ -37,6 +37,39 @@ struct WheelGeometryTests {
         }
     }
 
+    /// 三角形の頂点の並び（表から見て反時計回り）から求めた向きが、頂点の法線と同じ側を向く。
+    /// 逆だと SceneKit の片面描画で表が描かれない。
+    private func expectFacesMatchNormals(_ indices: [Int32], in mesh: WheelGeometry.SliceMesh) {
+        #expect(!indices.isEmpty && indices.count % 3 == 0)
+        for triangle in stride(from: 0, to: indices.count, by: 3) {
+            let a = mesh.vertices[Int(indices[triangle])]
+            let b = mesh.vertices[Int(indices[triangle + 1])]
+            let c = mesh.vertices[Int(indices[triangle + 2])]
+            let u = b - a, v = c - a
+            let face = SIMD3(u.y * v.z - u.z * v.y, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x)
+            let normal = mesh.normals[Int(indices[triangle])] + mesh.normals[Int(indices[triangle + 1])]
+                + mesh.normals[Int(indices[triangle + 2])]
+            let agreement = face.x * normal.x + face.y * normal.y + face.z * normal.z
+            #expect(agreement > 0, "triangle \(triangle / 3)")
+        }
+    }
+
+    @Test(arguments: [(0.0, 90.0), (45.0, 50.0), (0.0, 360.0), (200.0, 320.0)])
+    func スライスの面は法線の側を表に向ける(start: Double, end: Double) {
+        let mesh = WheelGeometry.sliceMesh(start: start, end: end, radius: 100, thickness: 14)
+        #expect(mesh.vertices.count == mesh.normals.count)
+        expectFacesMatchNormals(mesh.top, in: mesh)
+        expectFacesMatchNormals(mesh.side, in: mesh)
+    }
+
+    @Test func スライスの表面は手前で側面は奥へ伸びる() {
+        let mesh = WheelGeometry.sliceMesh(start: 0, end: 90, radius: 100, thickness: 14)
+        let topZ = Set(mesh.top.map { mesh.vertices[Int($0)].z })
+        let sideZ = Set(mesh.side.map { mesh.vertices[Int($0)].z })
+        #expect(topZ == [0])
+        #expect(sideZ == [0, -14])
+    }
+
     /// 2D の `rotationEffect`（時計回りが正）と同じ向きに回るよう、z 軸まわり（反時計回りが正）では符号を返す。
     @Test func 回転角はz軸まわりでは符号を返す() {
         #expect(abs(WheelGeometry.spinAngle(rotation: 90) + .pi / 2) < 1e-12)

@@ -166,35 +166,16 @@ final class Wheel3DScene {
 
     /// 1 枚のスライス。表面は照明に依らない塗り、外周の側面は陰影の付く同じ色。
     private func sliceNode(start: Double, end: Double, radius: Double, thickness: Double, color: Color) -> SCNNode {
-        let arc = WheelGeometry.arc(start: start, end: end, radius: radius)
-        var vertices: [SCNVector3] = [SCNVector3(0, 0, 0)]
-        var normals: [SCNVector3] = [SCNVector3(0, 0, 1)]
-        var topIndices: [Int32] = []
-        for (offset, point) in arc.enumerated() {
-            vertices.append(SCNVector3(Float(point.x), Float(point.y), 0))
-            normals.append(SCNVector3(0, 0, 1))
-            if offset > 0 {
-                // 手前から見て反時計回りに並べて表を手前へ向ける（外周の点は時計回りに進む）
-                topIndices += [0, Int32(offset + 1), Int32(offset)]
-            }
-        }
-        var sideIndices: [Int32] = []
-        for (offset, point) in arc.enumerated() {
-            let normal = SCNVector3(Float(point.x / radius), Float(point.y / radius), 0)
-            vertices.append(SCNVector3(Float(point.x), Float(point.y), 0))
-            vertices.append(SCNVector3(Float(point.x), Float(point.y), Float(-thickness)))
-            normals += [normal, normal]
-            if offset > 0 {
-                let base = Int32(arc.count + 1 + offset * 2)
-                let top = base, bottom = base + 1, previousTop = base - 2, previousBottom = base - 1
-                sideIndices += [previousTop, previousBottom, top, top, previousBottom, bottom]
-            }
-        }
+        let mesh = WheelGeometry.sliceMesh(start: start, end: end, radius: radius, thickness: thickness)
+        let vector = { (v: SIMD3<Double>) in SCNVector3(Float(v.x), Float(v.y), Float(v.z)) }
         let geometry = SCNGeometry(
-            sources: [SCNGeometrySource(vertices: vertices), SCNGeometrySource(normals: normals)],
+            sources: [
+                SCNGeometrySource(vertices: mesh.vertices.map(vector)),
+                SCNGeometrySource(normals: mesh.normals.map(vector)),
+            ],
             elements: [
-                SCNGeometryElement(indices: topIndices, primitiveType: .triangles),
-                SCNGeometryElement(indices: sideIndices, primitiveType: .triangles),
+                SCNGeometryElement(indices: mesh.top, primitiveType: .triangles),
+                SCNGeometryElement(indices: mesh.side, primitiveType: .triangles),
             ]
         )
         geometry.materials = [Self.material(color, lit: false), Self.material(color, lit: true)]

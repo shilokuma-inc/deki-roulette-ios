@@ -10,36 +10,50 @@ import SwiftUI
 /// 傾いた盤や針がはみ出しても切れないよう、場面は盤面の枠より `Theme.Wheel3D.overscan` だけ広く描く（触れた操作は受けない）。
 /// `highlightedIndex` を渡すと、2D と同じくそのスライスを止まった位置として強調する（他を暗くし、縁取りと光彩を付け、
 /// 押し出して針を跳ねさせ、結果が出ている間は前に出したままにする）。
+/// ドラッグ追従とフリックは 2D と同じ `WheelDragArea` が盤面の枠で受け、追従で回した角度を盤の回転に足す（補間はしない）。
+/// 角速度は画面平面上の指の動きで出す。結果が出たあとに指で動かしたら強調だけ解く。
 struct Wheel3DView: View {
     let items: [Item]
     let rotation: Double
     var highlightedIndex: Int? = nil
+    var interactive = true
     var spinEasing = Config.spinEasing
     /// 止まったスライスの光彩の色（設定の「ルーレットの詳細設定」）。
     var glowStyle = GlowStyle.default
     /// 結果の帯。結果が出ている間だけ渡す。
     var result: Wheel3DResult? = nil
+    var onBoundaryCross: ((_ time: TimeInterval) -> Void)? = nil
+    var onRelease: ((_ angularVelocity: Double?, _ dragRotation: Double) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
-        GeometryReader { proxy in
-            let side = min(proxy.size.width, proxy.size.height)
-            let canvas = side * (1 + 2 * Theme.Wheel3D.overscan)
-            Wheel3DSurface(
-                items: items, rotation: rotation, diameter: side, displayScale: displayScale,
-                highlight: highlightedIndex.map { Wheel3DHighlight(index: $0, glowStyle: glowStyle) },
-                result: result, reduceMotion: reduceMotion
-            )
-            .frame(width: canvas, height: canvas)
-            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-            .allowsHitTesting(false)
+        WheelDragArea(
+            count: items.count, rotation: rotation, highlightedIndex: highlightedIndex, interactive: interactive,
+            onBoundaryCross: onBoundaryCross, onRelease: onRelease
+        ) { dragRotation, displacedByDrag in
+            GeometryReader { proxy in
+                let side = min(proxy.size.width, proxy.size.height)
+                let canvas = side * (1 + 2 * Theme.Wheel3D.overscan)
+                // 追従の角度は足すだけにする。ドラッグ中は `rotation` が変わらないので下の `.animation` は掛からず、指にそのまま付いてくる。
+                // 指を離した更新では、親が追従の角度を `rotation` に取り込むのと `dragRotation` を 0 に戻すのが同じ更新に入るので、
+                // 盤は離した角度から続く
+                Wheel3DSurface(
+                    items: items, rotation: rotation + dragRotation, diameter: side, displayScale: displayScale,
+                    // 結果が出たあとに指で動かしたら強調を解く（結果の帯は残る）
+                    highlight: displacedByDrag ? nil : highlightedIndex.map { Wheel3DHighlight(index: $0, glowStyle: glowStyle) },
+                    result: result, reduceMotion: reduceMotion
+                )
+                .frame(width: canvas, height: canvas)
+                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                .allowsHitTesting(false)
+            }
+            // 2D の盤面と同じく、回転の値の変化だけは外側のトランザクションに依らずスピンの曲線で補間させる
+            // （キーボードが閉じる更新に重なっても盤面が最終角度へ飛ばない）。動きを減らす設定では親が値を直接書くので付けない
+            .animation(reduceMotion ? nil : Theme.spinAnimation(easing: spinEasing), value: rotation)
+            .aspectRatio(1, contentMode: .fit)
         }
-        // 2D の盤面と同じく、回転の値の変化だけは外側のトランザクションに依らずスピンの曲線で補間させる
-        // （キーボードが閉じる更新に重なっても盤面が最終角度へ飛ばない）。動きを減らす設定では親が値を直接書くので付けない
-        .animation(reduceMotion ? nil : Theme.spinAnimation(easing: spinEasing), value: rotation)
-        .aspectRatio(1, contentMode: .fit)
         .accessibilityHidden(true)
     }
 }

@@ -105,9 +105,13 @@ struct RouletteScreen: View {
                 rotation: model.rotation,
                 // 2D と同じく、結果が出ている間だけ止まったスライスを強調する
                 highlightedIndex: model.outcome?.index,
+                interactive: !model.spinning,
                 spinEasing: model.spinEasing,
                 glowStyle: glowStyle,
-                result: wheel3DResult
+                result: wheel3DResult,
+                // 2D と同じく、指を離した角度からフリックのスピンを始める
+                onBoundaryCross: dragCrossedBoundary,
+                onRelease: release
             )
         } else {
             RouletteWheelView(

@@ -112,4 +112,7 @@ enum Config {
 
     /// 3D の盤を端末の姿勢に合わせて倒す最大角（度）。これより大きく傾けても盤はここで止める。
     static let wheelMaxTilt: Double = 25
+
+    /// 3D の盤を傾けるために端末の姿勢を読む間隔（秒）。
+    static let motionUpdateInterval: TimeInterval = 1.0 / 60
 }

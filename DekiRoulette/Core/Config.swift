@@ -89,6 +89,14 @@ enum Config {
     /// 止まったスライスの光彩の色（`GlowStyle.rawValue`）を保存する `UserDefaults` のキー。未設定なら `GlowStyle.default`。
     static let glowStyleKey = "glowStyle"
 
+    // MARK: 3D 表示
+
+    /// 盤面を 3D で描くかを保存する `UserDefaults` のキー。未設定なら OFF（今の 2D の盤面）。
+    static let wheel3DEnabledKey = "wheel3DEnabled"
+
+    /// 3D の盤を傾ける基準（`TiltReference.rawValue`）を保存する `UserDefaults` のキー。未設定なら `TiltReference.default`。
+    static let tiltReferenceKey = "tiltReference"
+
     // MARK: 効果音
 
     /// 効果音の ON/OFF を保存する `UserDefaults` のキー。未設定なら ON。

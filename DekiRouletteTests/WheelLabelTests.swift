@@ -79,4 +79,12 @@ struct WheelLabelTests {
         // 文字数は Character 単位で数える
         #expect(WheelLabel.truncate("🍜🍛🍣🍖🍕🍔", limit: 5) == "🍜🍛🍣🍖🍕…")
     }
+
+    @Test func ラベルは半径方向に沿わせ左半分は返す() {
+        #expect(WheelLabel.rotation(midAngle: 90) == 0)
+        #expect(WheelLabel.rotation(midAngle: 45) == -45)
+        #expect(WheelLabel.rotation(midAngle: 180) == 90)
+        #expect(WheelLabel.rotation(midAngle: 270) == 360)
+        #expect(WheelLabel.rotation(midAngle: 315) == 405)
+    }
 }

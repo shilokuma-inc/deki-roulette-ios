@@ -65,10 +65,27 @@ struct Wheel3DSceneTests {
     }
 
     private func makeScene(count: Int, rotation: Double) -> Wheel3DScene {
+        makeScene(labels: Array(repeating: "", count: count), rotation: rotation)
+    }
+
+    private func makeScene(labels: [String], rotation: Double) -> Wheel3DScene {
         let scene = Wheel3DScene()
-        scene.update(count: count, diameter: size)
+        scene.update(labels: labels, diameter: size)
         scene.spin(to: rotation)
         return scene
+    }
+
+    /// `center` のまわり（一辺 `box` px）で、ラベルの文字色（`onSlice`）に近い画素の数。
+    private func inkCount(around center: CGPoint, box: Int = 10, pixels: Pixels) -> Int {
+        let ink = srgb(Theme.onSlice)
+        var count = 0
+        for dx in -box / 2..<box / 2 {
+            for dy in -box / 2..<box / 2 {
+                let color = pixels.color(at: CGPoint(x: center.x + CGFloat(dx), y: center.y + CGFloat(dy)))
+                if isClose(color, ink) { count += 1 }
+            }
+        }
+        return count
     }
 
     @Test func スライスは12時から時計回りに並び塗りの色のまま出る() throws {
@@ -96,9 +113,51 @@ struct Wheel3DSceneTests {
 
     @Test func 件数が変わると組み直す() throws {
         let scene = makeScene(count: 4, rotation: 0)
-        scene.update(count: 3, diameter: size)
+        scene.update(labels: ["", "", ""], diameter: size)
         let pixels = try render(scene)
         let color = pixels.color(at: location(angle: 180, fraction: 0.6, pixels: pixels))
         #expect(isClose(color, srgb(Theme.sliceColor(at: 1, count: 3))), "\(color)")
+    }
+
+    /// ラベルは自分のスライスの上に出る（上下・左右に反転しない）。
+    @Test func ラベルは自分のスライスに出る() throws {
+        let pixels = try render(makeScene(labels: ["", "■■■", "", ""], rotation: 0))
+        let own = location(angle: 135, fraction: WheelLabel.radiusFraction, pixels: pixels)
+        #expect(inkCount(around: own, pixels: pixels) > 30)
+        for angle in [45.0, 225, 315] {
+            let other = location(angle: angle, fraction: WheelLabel.radiusFraction, pixels: pixels)
+            #expect(inkCount(around: other, pixels: pixels) == 0, "\(angle)")
+        }
+    }
+
+    /// 文字は半径方向に左から右へ並び、右半分では中心側から、左半分では外周側から読み始める（2D と同じ向き）。
+    /// 先頭にだけ印のあるラベルで、印が出る側を確かめる（左右に反転すると逆の側に出る）。
+    @Test func ラベルの文字は2Dと同じ向きに並ぶ() throws {
+        let label = "■\u{3000}\u{3000}\u{3000}"
+        let pixels = try render(makeScene(labels: ["", label, "", label], rotation: 0))
+        let inner = WheelLabel.radiusFraction - 0.13
+        let outer = WheelLabel.radiusFraction + 0.13
+        // 右半分（135 度）は中心側が先頭
+        #expect(inkCount(around: location(angle: 135, fraction: inner, pixels: pixels), pixels: pixels) > 30)
+        #expect(inkCount(around: location(angle: 135, fraction: outer, pixels: pixels), pixels: pixels) == 0)
+        // 左半分（315 度）は逆さまにしないよう返すので、外周側が先頭
+        #expect(inkCount(around: location(angle: 315, fraction: outer, pixels: pixels), pixels: pixels) > 30)
+        #expect(inkCount(around: location(angle: 315, fraction: inner, pixels: pixels), pixels: pixels) == 0)
+    }
+
+    @Test func ラベルは盤と一緒に回る() throws {
+        let pixels = try render(makeScene(labels: ["", "■■■", "", ""], rotation: 180))
+        let moved = location(angle: 315, fraction: WheelLabel.radiusFraction, pixels: pixels)
+        #expect(inkCount(around: moved, pixels: pixels) > 30)
+        let original = location(angle: 135, fraction: WheelLabel.radiusFraction, pixels: pixels)
+        #expect(inkCount(around: original, pixels: pixels) == 0)
+    }
+
+    @Test func ラベルが変わると組み直す() throws {
+        let scene = makeScene(labels: ["", "■■■", "", ""], rotation: 0)
+        scene.update(labels: ["", "", "", ""], diameter: size)
+        let pixels = try render(scene)
+        let own = location(angle: 135, fraction: WheelLabel.radiusFraction, pixels: pixels)
+        #expect(inkCount(around: own, pixels: pixels) == 0)
     }
 }

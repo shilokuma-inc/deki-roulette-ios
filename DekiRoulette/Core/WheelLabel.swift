@@ -33,6 +33,15 @@ enum WheelLabel {
         return baseFontSize(count: count) * min(ratio, ratio.squareRoot())
     }
 
+    /// ラベルを置く位置。スライスの中央の角度で、中心からスライスの半径のこの割合のところに置く（2D と 3D で共有する）。
+    static let radiusFraction = 0.62
+
+    /// スライスの中央の角度 `midAngle`（度、12 時が 0 度・時計回り）に置くラベルの回転（度、画面上の時計回りが正）。
+    /// 半径方向に沿わせ、左半分はそのまま回すと文字が上下逆さまになるため 180 度返す。
+    static func rotation(midAngle: Double) -> Double {
+        midAngle > 180 ? midAngle + 90 : midAngle - 90
+    }
+
     /// `limit` 文字を超えるラベルを切って省略記号を付ける。Web 版 `truncate` と同じ。
     static func truncate(_ label: String, limit: Int) -> String {
         label.count > limit ? String(label.prefix(limit)) + "…" : label

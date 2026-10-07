@@ -105,6 +105,16 @@ struct FlickSpinTests {
         #expect(FlickSpin.angularVelocity(samples: samples, center: center) == 0)
     }
 
+    @Test func 中心付近を挟んだ前後の点をつながない() {
+        // 9 時 → 中心 → 3 時と払う。中心の点を除いて左右をつなぐと半周回ったことになる
+        let samples = [
+            FlickSpin.Sample(time: 0, location: CGPoint(x: center.x - 100, y: center.y)),
+            FlickSpin.Sample(time: 0.05, location: center),
+            FlickSpin.Sample(time: 0.1, location: CGPoint(x: center.x + 100, y: center.y)),
+        ]
+        #expect(FlickSpin.angularVelocity(samples: samples, center: center) == 0)
+    }
+
     @Test func 記録が1点以下なら0() {
         #expect(FlickSpin.angularVelocity(samples: [], center: center) == 0)
         #expect(FlickSpin.angularVelocity(samples: Array(arc(degreesPerSecond: 600, duration: 0.1).prefix(1)), center: center) == 0)
@@ -158,5 +168,120 @@ struct FlickSpinTests {
             #expect(spins >= previous)
             previous = spins
         }
+    }
+
+    // MARK: 初速
+
+    /// 曲線 `easing` で `distance` 度を `duration` 秒かけて回すときの、回り始めの角速度（度/秒）。
+    private func initialSpeed(_ easing: CubicBezierCurve, distance: Double, duration: TimeInterval) -> Double {
+        let dt = 1e-5
+        return easing.progress(atTime: dt) * distance / (dt * duration)
+    }
+
+    @Test func 盤面は指を離した瞬間の速さで回り出す() {
+        for velocity in [Config.flickMinAngularVelocity, 600, 1200, -900] {
+            let distance = 4.0 * 360 + 135
+            let easing = FlickSpin.easing(angularVelocity: velocity, distance: distance, duration: Config.spinDuration)
+            let speed = initialSpeed(easing, distance: distance, duration: Config.spinDuration)
+            #expect(abs(speed - abs(velocity)) / abs(velocity) < 0.01)
+        }
+    }
+
+    @Test func 初速は向きに依らず速さで決める() {
+        let distance = 6.0 * 360 + 40
+        #expect(
+            FlickSpin.easing(angularVelocity: 800, distance: distance, duration: Config.spinDuration)
+                == FlickSpin.easing(angularVelocity: -800, distance: distance, duration: Config.spinDuration)
+        )
+    }
+
+    @Test func 初速を変えても止まり方と長さの前提は同じ() {
+        let easing = FlickSpin.easing(angularVelocity: 1000, distance: 2000, duration: Config.spinDuration)
+        // 始点の傾き以外は基準の曲線のまま。終わりの減速の形と、時刻 1 で止まることは変わらない
+        #expect(easing.x1 == Config.spinEasing.x1)
+        #expect(easing.x2 == Config.spinEasing.x2)
+        #expect(easing.y2 == Config.spinEasing.y2)
+        #expect(easing.progress(atTime: 1) == 1)
+    }
+
+    @Test func 速すぎるフリックは曲線が保てる初速で頭打ちになる() {
+        let easing = FlickSpin.easing(angularVelocity: 100_000, distance: 1500, duration: Config.spinDuration)
+        #expect(easing.y1 == 1)
+    }
+
+    @Test func 初速を変えた曲線も単調に進む() {
+        for velocity in stride(from: Config.flickMinAngularVelocity, through: 6000, by: 240) {
+            let easing = FlickSpin.easing(angularVelocity: velocity, distance: 4 * 360 + 10, duration: Config.spinDuration)
+            var previous = 0.0
+            for step in 1...200 {
+                let progress = easing.progress(atTime: Double(step) / 200)
+                #expect(progress >= previous)
+                previous = progress
+            }
+            #expect(abs(previous - 1) < 1e-9)
+        }
+    }
+
+    // MARK: 指を離したとき
+
+    @Test func 閾値以上ならフリックと同じスピン() throws {
+        for velocity in [Config.flickMinAngularVelocity, 900, -1500, Config.flickMaxAngularVelocity * 2] {
+            let expected = try #require(FlickSpin.spin(angularVelocity: velocity))
+            #expect(FlickSpin.releaseSpin(angularVelocity: velocity, dragRotation: -velocity, fallback: .counterclockwise) == expected)
+        }
+    }
+
+    @Test func 閾値未満でも最小の周回数で回す() {
+        for velocity in [0, 1, Config.flickMinAngularVelocity - 1, -(Config.flickMinAngularVelocity - 1)] {
+            let spin = FlickSpin.releaseSpin(angularVelocity: velocity, dragRotation: 30, fallback: .clockwise)
+            #expect(spin.fullSpins == Config.fullSpinRange.lowerBound)
+        }
+    }
+
+    @Test func 閾値未満では動かした向きに回す() {
+        // 離す直前に少し戻していても、ドラッグで回した向きを優先する
+        #expect(FlickSpin.releaseSpin(angularVelocity: -50, dragRotation: 40, fallback: .counterclockwise).direction == .clockwise)
+        #expect(FlickSpin.releaseSpin(angularVelocity: 50, dragRotation: -40, fallback: .clockwise).direction == .counterclockwise)
+    }
+
+    @Test func 閾値未満で盤面を動かしていなければ角速度の向き() {
+        #expect(FlickSpin.releaseSpin(angularVelocity: -50, dragRotation: 0, fallback: .clockwise).direction == .counterclockwise)
+        #expect(FlickSpin.releaseSpin(angularVelocity: 50, dragRotation: 0, fallback: .counterclockwise).direction == .clockwise)
+    }
+
+    @Test func 動きが無ければ直前の向きで回す() {
+        #expect(FlickSpin.releaseSpin(angularVelocity: 0, dragRotation: 0, fallback: .counterclockwise).direction == .counterclockwise)
+        #expect(FlickSpin.releaseSpin(angularVelocity: 0, dragRotation: 0, fallback: .clockwise).direction == .clockwise)
+    }
+
+    // MARK: 向き
+
+    @Test func 時計回りのフリックは時計回りに回す() {
+        let spin = FlickSpin.spin(angularVelocity: Config.flickMinAngularVelocity)
+        #expect(spin == FlickSpin.Spin(fullSpins: Config.fullSpinRange.lowerBound, direction: .clockwise))
+    }
+
+    @Test func 反時計回りのフリックは反時計回りに回す() {
+        let spin = FlickSpin.spin(angularVelocity: -Config.flickMaxAngularVelocity)
+        #expect(spin == FlickSpin.Spin(fullSpins: Config.fullSpinRange.upperBound, direction: .counterclockwise))
+    }
+
+    @Test func 向きを返しても閾値と周回数は変わらない() {
+        #expect(FlickSpin.spin(angularVelocity: 0) == nil)
+        #expect(FlickSpin.spin(angularVelocity: Config.flickMinAngularVelocity - 1) == nil)
+        #expect(FlickSpin.spin(angularVelocity: -(Config.flickMinAngularVelocity - 1)) == nil)
+        for speed in stride(from: Config.flickMinAngularVelocity, through: Config.flickMaxAngularVelocity + 500, by: 10) {
+            #expect(FlickSpin.spin(angularVelocity: speed)?.fullSpins == FlickSpin.fullSpins(angularVelocity: speed))
+            #expect(FlickSpin.spin(angularVelocity: -speed)?.fullSpins == FlickSpin.fullSpins(angularVelocity: -speed))
+            #expect(FlickSpin.spin(angularVelocity: speed)?.direction == .clockwise)
+            #expect(FlickSpin.spin(angularVelocity: -speed)?.direction == .counterclockwise)
+        }
+    }
+
+    @Test func 反時計回りに払った記録から反時計回りの向きが出る() {
+        let velocity = FlickSpin.angularVelocity(samples: arc(degreesPerSecond: -900, duration: 0.2), center: center)
+        #expect(FlickSpin.spin(angularVelocity: velocity)?.direction == .counterclockwise)
+        let clockwise = FlickSpin.angularVelocity(samples: arc(degreesPerSecond: 900, duration: 0.2), center: center)
+        #expect(FlickSpin.spin(angularVelocity: clockwise)?.direction == .clockwise)
     }
 }

@@ -2,6 +2,7 @@ import AVFAudio
 
 /// スピン中の「カチッ」を鳴らす。止まる位置も回転角もスピン開始時に決まっているので、
 /// 鳴らす時刻も先に分かる。`ClickTrack` で 1 本の波形にしてから一度に流し、リズムを揺らさない。
+/// 指で盤面を動かしている間は、境目を越えるたびに `playClick()` で 1 回ずつ鳴らす。
 /// 音が出せない環境（素材が読めない、オーディオが使えない等）では黙って何もしない。
 @MainActor
 final class SpinSoundPlayer {
@@ -38,8 +39,19 @@ final class SpinSoundPlayer {
         }
     }
 
+    /// いますぐクリック音を 1 回鳴らす（指で動かしている盤面の針が境目を越えたとき）。
+    /// セッションの準備を待った分だけ遅れても捨てずに鳴らす（`play(at: [0])` だと時刻が過ぎた扱いで鳴らない）。
+    func playClick() {
+        play(at: [0], keepsLate: true)
+    }
+
     /// `times`（スピン開始からの秒）にクリック音を鳴らす。呼んだ時点が 0 秒。
     func play(at times: [TimeInterval]) {
+        play(at: times, keepsLate: false)
+    }
+
+    /// `keepsLate` が true なら、準備を待つうちに過ぎた時刻も捨てずにすぐ鳴らす。
+    private func play(at times: [TimeInterval], keepsLate: Bool) {
         prepare()
         guard !times.isEmpty, let click, let sessionSetup else { return }
 
@@ -54,7 +66,8 @@ final class SpinSoundPlayer {
             guard ready, self.generation == current else { return }
             // 待った分だけ遅れて鳴り始めるので、時刻をずらして過ぎたものは捨てる
             let waited = requested.duration(to: .now) / .seconds(1)
-            let remaining = times.map { $0 - waited }.filter { $0 >= 0 }
+            let shifted = times.map { $0 - waited }
+            let remaining = keepsLate ? shifted.map { max($0, 0) } : shifted.filter { $0 >= 0 }
             self.start(remaining, click: click)
         }
     }

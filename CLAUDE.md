@@ -44,41 +44,59 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 ### スピンの仕組み
 
 `RouletteModel.beginSpin` が `RouletteMath.nextRotation` で累積回転角を決めて返し、View が
-`withAnimation(Theme.spinAnimation) { model.rotation = next } completion: { model.finishSpin() }` で回す。
+`withAnimation(Theme.spinAnimation(easing: model.spinEasing)) { model.rotation = next } completion: { model.finishSpin() }` で回す。
+曲線はボタンでは `Config.spinEasing`、フリックでは指を離した瞬間の角速度から `FlickSpin.easing` が始点の傾き（`y1`）だけを
+変えたもの（初速が離した速さにつながる）。長さ（`Config.spinDuration`）と終わりの形は同じなので、`spinFallback` も止まる位置も変わらない。
 結果は開始時に確定している（`SpinOutcome` でラベルと盤面上の添字を持ち、結果表示の色を止まったスライスに合わせる）。
 完了コールバックが来ない場合の保険として `Config.spinFallback` のタイマーを持つ。
 `accessibilityReduceMotion` のときは回さず、`reducedMotionSpinDuration` 後に完了扱いにする。
 
-盤面の `rotationEffect` には `.animation(Theme.spinAnimation, value: rotation)` を付けてある（`reduceMotion` では `nil`）。
+盤面の `rotationEffect` には `.animation(Theme.spinAnimation(easing: spinEasing), value: rotation)` を付けてある（`reduceMotion` では `nil`。
+`spinEasing` は `withAnimation` と同じ `model.spinEasing` を渡す）。
 キーボードが出た状態でスピンを始めると、演出開始で入力欄が無効になってキーボードが閉じ、その安全領域の変化が
 `withAnimation` の更新に重なって補間が落ちる（盤面が最終角度へ飛び、音だけが鳴る）ため、回転の値の変化だけは
-外側のトランザクションに依らず `Theme.spinAnimation` で補間させる。回り始めとキーボードの閉じ始めは同時で、音・触覚の時刻は変えない。
+外側のトランザクションに依らずスピンの曲線で補間させる。回り始めとキーボードの閉じ始めは同時で、音・触覚の時刻は変えない。
 
 盤面は 12 時を 0 度、時計回り。`SliceShape` は `clockwise: false` で画面上は時計回りになる（y 軸が下向きのため）。
 
-盤面のフリックでも始められる。`RouletteWheelView` がドラッグ中の位置を `FlickSampleBuffer` に記録し、指を離す直前
+盤面のフリックでも始められる。ドラッグ中は盤面を指に追従させる。`RouletteWheelView` が `WheelDrag.rotationDelta` で
+指が中心のまわりを回った角度を `@State dragRotation` に足し、`rotationEffect(rotation + dragRotation)` で回す（ドラッグ中は
+`rotation` が変わらないのでスピンの曲線の `.animation` は掛からない）。指を離すと `dragRotation` を 0 に戻し、
+同じ更新で `RouletteScreen` が `model.rotate(by:)` で取り込んでからスピンを始める（見た目は離した角度から続き、止まる累積角・
+音・触覚の時刻もその角度から求める）。演出中（`interactive == false`）に始まったドラッグは追従もフリックもしない。
+追従で針が境目を越えたら（`WheelDrag.boundaryCrossings`）`onBoundaryCross` で親に伝え、`model.crossDragBoundary(at:)` が
+`WheelDrag.FeedbackThrottle` で間引いて `dragBoundaryTick` を進め（触覚）、回転音を鳴らすかを返す（`sound.playClick()`）。
+結果の表示は回転角ではなく `spinCount` で出し直すので、指で動かしても結果は出し直さない。
+あわせて `RouletteWheelView` がドラッグ中の位置を `FlickSampleBuffer` に記録し、指を離す直前
 `Config.flickSampleWindow` に中心のまわりを回った角度から `FlickSpin.angularVelocity` で角速度を出す（離した瞬間の
 `velocity` は揺れが大きく、同じフリックでも回らないことがあるので使わない）。それを
-`FlickSpin.fullSpins` で周回数に写して `beginSpin(reducedMotion:fullSpins:)` に渡す（閾値未満は何もしない）。
-強さは周回数にだけ効き、止まる位置の式は変えない。停止後は `outcome.index` を `highlightedIndex` として渡し、
-他のスライスを `Theme.sliceDim` で沈める。押し出しと針の跳ねは停止の瞬間だけで、`accessibilityReduceMotion` では省く。
+`FlickSpin.spin` で周回数と向き（`SpinDirection`、角速度の符号）に写し、角速度そのものと一緒に
+`beginSpin(reducedMotion:fullSpins:direction:releaseVelocity:)` に渡す（閾値未満でも `FlickSpin.releaseSpin` が最小の周回数で、ドラッグで回した向きに回す。指を離さずにジェスチャが取り消されたときは
+`onRelease` の角速度が nil で、追従した角度を残すだけで回さない）。
+強さは周回数と回り始めの速さ（`spinEasing`）にだけ効き、止まる位置の式は変えない。反時計回りでは `RouletteMath.nextRotation` が
+累積角を減らす向きに決め、`SpinTicks` / `HapticSchedule` は `to < from` を符号を反転して同じ式で数える。モデルは直前のフリックの
+向きを `lastDirection` に覚え、「スピン」ボタンはその向きで回す（初期値は時計回り、保存しない）。停止後は `outcome.index` を `highlightedIndex` として渡し、
+他のスライスを `Theme.sliceDim` で沈める（結果が出たあとに指で動かしたら強調だけ解く）。押し出しと針の跳ねは停止の瞬間だけで、`accessibilityReduceMotion` では省く。
 
 ### 触覚の仕組み
 
 `sensoryFeedback(_:trigger:)` でモデルの値の変化に反応させる（`spinning` / `outcome` / `revealing` と、
 刻み用のカウンタ `boundaryTick` / `revealTick`）。補間中の角度は observable でないので、`beginSpin` が
-`HapticSchedule.boundaryCrossings`（`Config.spinEasing` を `CubicBezierCurve` で逆算）で境目を越える時刻を
+`HapticSchedule.boundaryCrossings`（そのスピンの曲線 `spinEasing` を `CubicBezierCurve` で逆算）で境目を越える時刻を
 先に求め、`TickScheduler` の `Task` でカウンタを刻む。完了・中断でキャンセルし、`reducedMotion` では刻まない。
+指で盤面を動かしている間の境目は別のカウンタ `dragBoundaryTick` で、スピン中の `.selection` より強い
+`.impact(weight: Config.hapticDragBoundaryWeight)` を返す（利用者の操作なので `reducedMotion` でも鳴らす）。
 ON/OFF は `@AppStorage(Config.hapticsEnabledKey)`。設定の文言は「触覚フィードバック」だけで、長押しには触れない。
 
 ### 回転音の仕組み
 
 スピン中は針がスライスの境目を越えるたびにクリック音を鳴らす。補間中の角度は observable でないので、
-`beginSpin` が `SpinTicks.boundaryCrossings`（`Config.spinEasing` を `CubicBezierCurve` で逆算）で鳴らす時刻を
+`beginSpin` が `SpinTicks.boundaryCrossings`（そのスピンの曲線 `spinEasing` を `CubicBezierCurve` で逆算）で鳴らす時刻を
 先に求め、`SpinSoundPlayer` が `ClickTrack` で 1 本の波形に焼いてから一度に流す（1 発ずつタイマーで鳴らすと
 リズムが揺れるため）。`Config.clickMinInterval` より詰まった時刻は間引く。音源は `Resources/Sounds/click.wav`
 （`scripts/make-click-sound.swift` で再生成）。`AVAudioSession` は `.ambient` で、消音スイッチに従い他アプリの
-音も止めない。`reducedMotion` では鳴らさない。ON/OFF は `@AppStorage(Config.soundEnabledKey)`。
+音も止めない。`reducedMotion` では鳴らさない。指で盤面を動かしている間は、境目を越えたその場で `playClick()` で 1 回ずつ
+鳴らす（`reducedMotion` でも鳴らす）。ON/OFF は `@AppStorage(Config.soundEnabledKey)`。
 
 ### 並べ替えの仕組み
 

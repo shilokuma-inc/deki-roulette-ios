@@ -52,6 +52,10 @@ struct RouletteScreen: View {
         .sensoryFeedback(trigger: model.boundaryTick) { _, _ in
             hapticsEnabled ? .selection : nil
         }
+        // 指で動かしている間の境目は、スピン中の刻みより強く返す
+        .sensoryFeedback(trigger: model.dragBoundaryTick) { _, _ in
+            hapticsEnabled ? .impact(weight: Config.hapticDragBoundaryWeight) : nil
+        }
         .sensoryFeedback(trigger: model.outcome) { _, outcome in
             hapticsEnabled && outcome != nil ? .success : nil
         }
@@ -68,7 +72,10 @@ struct RouletteScreen: View {
                 rotation: model.rotation,
                 // 結果が出ている間だけ止まったスライスを強調する。項目を触って結果が消えれば強調も解ける
                 highlightedIndex: model.outcome?.index,
-                onFlick: flick
+                interactive: !model.spinning,
+                spinEasing: model.spinEasing,
+                onBoundaryCross: dragCrossedBoundary,
+                onRelease: release
             )
             .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
 
@@ -88,7 +95,7 @@ struct RouletteScreen: View {
                 if let outcome = model.outcome, !model.spinning {
                     let text = ResultText.roulette(label: outcome.label, heading: L10n.resultHeading)
                     ResultActions(copyText: text, shareText: ResultText.share(text, appName: L10n.appName))
-                        .id(outcome.label + "\(model.rotation)")
+                        .id(outcome.label + "\(model.spinCount)")
                 }
             }
             .frame(height: 32)
@@ -109,7 +116,7 @@ struct RouletteScreen: View {
                 .background(color.opacity(0.1), in: .rect(cornerRadius: 16))
                 .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(color.opacity(0.6), lineWidth: 1))
                 .revealOnAppear(reducedMotion: reduceMotion)
-                .id(outcome.label + "\(model.rotation)")
+                .id(outcome.label + "\(model.spinCount)")
         } else {
             Text(model.spinning ? L10n.spinning : L10n.resultPlaceholder)
                 .font(.caption)
@@ -117,24 +124,44 @@ struct RouletteScreen: View {
         }
     }
 
+    /// 「スピン」ボタン。直前のフリックの向きで回す。
     private func spin() {
-        spin(fullSpins: nil)
+        spin(fullSpins: nil, direction: nil, releaseVelocity: nil)
     }
 
-    /// 盤面のフリック。閾値未満の弱いドラッグでは何もしない。強さは周回数にだけ反映する。
-    private func flick(angularVelocity: Double) {
-        guard let fullSpins = FlickSpin.fullSpins(angularVelocity: angularVelocity) else { return }
-        spin(fullSpins: fullSpins)
+    /// 指で動かしている盤面の針が境目を越えた。触覚はモデルの刻みで鳴り、回転音はここで 1 回鳴らす（間引きはモデル）。
+    private func dragCrossedBoundary(at time: TimeInterval) {
+        if model.crossDragBoundary(at: time), soundEnabled { sound.playClick() }
     }
 
-    private func spin(fullSpins: Int?) {
-        guard let next = model.beginSpin(reducedMotion: reduceMotion, fullSpins: fullSpins) else { return }
+    /// 盤面から指を離した。追従で回した角度を取り込み、その角度からフリックのスピンを始める。
+    /// `dragRotation` の取り込みとスピンの開始は同じ更新に入れる（盤面が離した位置から回り出す）。
+    /// 指を離さずにジェスチャが取り消されたとき（`angularVelocity` が nil）は、追従した角度を残すだけで回さない。
+    private func release(angularVelocity: Double?, dragRotation: Double) {
+        model.rotate(by: dragRotation)
+        guard let angularVelocity else { return }
+        flick(angularVelocity: angularVelocity, dragRotation: dragRotation)
+    }
+
+    /// 盤面のフリック。強さは周回数にだけ反映し、フリックした向きに回す。盤面は離した瞬間の速さで回り出し、そこから減速する。
+    /// 閾値未満の弱いドラッグでも、最小の周回数で動かした向きに回す（`FlickSpin.releaseSpin`）。
+    private func flick(angularVelocity: Double, dragRotation: Double) {
+        let flick = FlickSpin.releaseSpin(
+            angularVelocity: angularVelocity, dragRotation: dragRotation, fallback: model.lastDirection
+        )
+        spin(fullSpins: flick.fullSpins, direction: flick.direction, releaseVelocity: angularVelocity)
+    }
+
+    private func spin(fullSpins: Int?, direction: SpinDirection?, releaseVelocity: Double?) {
+        guard let next = model.beginSpin(
+            reducedMotion: reduceMotion, fullSpins: fullSpins, direction: direction, releaseVelocity: releaseVelocity
+        ) else { return }
         if soundEnabled { sound.play(at: model.clickTimes) }
         if reduceMotion {
             // 動きを減らす設定では回さずに止まる。終了は保険のタイマーが担う
             model.rotation = next
         } else {
-            withAnimation(Theme.spinAnimation) {
+            withAnimation(Theme.spinAnimation(easing: model.spinEasing)) {
                 model.rotation = next
             } completion: {
                 model.finishSpin()

@@ -89,10 +89,12 @@ enum Theme {
     }
 
     /// 曲線は `Config.spinEasing` に置き、触覚の発火時刻（`HapticSchedule`）とクリック音の時刻（`SpinTicks`）の逆算と同じ形を共有する。
-    static let spinAnimation = Animation.timingCurve(
-        Config.spinEasing.x1, Config.spinEasing.y1, Config.spinEasing.x2, Config.spinEasing.y2,
-        duration: Config.spinDuration
-    )
+    static let spinAnimation = spinAnimation(easing: Config.spinEasing)
+
+    /// フリックで始めたスピンは、離した瞬間の速さに合わせた曲線（`RouletteModel.spinEasing`）で回す。長さは同じ。
+    static func spinAnimation(easing: CubicBezierCurve) -> Animation {
+        .timingCurve(easing.x1, easing.y1, easing.x2, easing.y2, duration: Config.spinDuration)
+    }
 
     /// 結果が現れる演出。両画面で使い回す。
     static let revealAnimation = Animation.timingCurve(0.2, 0.9, 0.3, 1, duration: Config.revealAnimationDuration)

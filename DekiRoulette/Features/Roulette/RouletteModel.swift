@@ -28,6 +28,10 @@ final class RouletteModel {
     /// 始めたスピンの回数。同じラベルが続けて出ても結果表示を出し直すための識別子に使う（`rotation` は指で動かしても変わるため使わない）。
     private(set) var spinCount = 0
 
+    /// いまのスピンの曲線。ボタンでは `Config.spinEasing`、フリックでは離した瞬間の速さに合わせて始点の傾きを変える。
+    /// View の補間と、回転音・触覚の時刻の逆算はこの曲線を共有する。
+    private(set) var spinEasing = Config.spinEasing
+
     /// 直前のフリックの向き。「スピン」ボタンはこの向きで回す。保存しないので起動ごとに時計回りから始まる。
     private(set) var lastDirection: SpinDirection = .clockwise
 
@@ -145,7 +149,11 @@ final class RouletteModel {
     /// `fullSpins` を渡すと周回数だけをその値にする（フリックの強さの反映）。止まる位置の決め方は変わらない。
     /// `direction` を渡すとその向きに回し、以後のボタンのスピンもその向きを引き継ぐ（フリックの向きの反映）。
     /// 省くと直前に渡された向き（初期値は時計回り）で回す。
-    func beginSpin(reducedMotion: Bool, fullSpins: Int? = nil, direction: SpinDirection? = nil) -> Double? {
+    /// `releaseVelocity` に指を離した瞬間の角速度（度/秒）を渡すと、盤面の初速をそれに合わせる（`spinEasing`）。
+    /// 長さと止まる位置は変わらない。省くと `Config.spinEasing` で回す（ボタンには初速が無い）。
+    func beginSpin(
+        reducedMotion: Bool, fullSpins: Int? = nil, direction: SpinDirection? = nil, releaseVelocity: Double? = nil
+    ) -> Double? {
         guard canSpin else { return nil }
         if let direction { lastDirection = direction }
 
@@ -164,6 +172,11 @@ final class RouletteModel {
         } else {
             RouletteMath.nextRotation(current: rotation, targetIndex: targetIndex, count: items.count, direction: lastDirection)
         }
+        spinEasing = if let releaseVelocity {
+            FlickSpin.easing(angularVelocity: releaseVelocity, distance: abs(next - rotation), duration: Config.spinDuration)
+        } else {
+            Config.spinEasing
+        }
         pendingOutcome = SpinOutcome(index: targetIndex, label: items[targetIndex].label)
         outcome = nil
         spinning = true
@@ -176,7 +189,7 @@ final class RouletteModel {
             to: next,
             count: items.count,
             duration: Config.spinDuration,
-            easing: Config.spinEasing,
+            easing: spinEasing,
             minInterval: Config.clickMinInterval
         )
 
@@ -197,7 +210,7 @@ final class RouletteModel {
             to: next,
             count: items.count,
             duration: Config.spinDuration,
-            easing: Config.spinEasing,
+            easing: spinEasing,
             minInterval: Config.hapticMinInterval
         )
         tickTask = TickScheduler.run(at: crossings) { [weak self] in self?.boundaryTick += 1 }

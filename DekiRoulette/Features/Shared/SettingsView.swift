@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// ヘッダ右上のアイコンから開く設定。触覚フィードバックと効果音の切替、ルーレットの詳細設定（光彩の色）、
+/// ヘッダ右上のアイコンから開く設定。触覚フィードバックと効果音の切替、ルーレットの詳細設定（光彩の色・3D 表示）、
 /// 項目の初期化、著作権の項目を置く。
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -144,36 +144,33 @@ struct SettingsView: View {
     }
 }
 
-/// 設定から進む「ルーレットの詳細設定」。止まったスライスの光彩の色を選ぶ。
+/// 設定から進む「ルーレットの詳細設定」。止まったスライスの光彩の色、3D 表示の ON/OFF と傾きの基準を選ぶ。
 private struct RouletteAdvancedSettingsView: View {
     @AppStorage(Config.glowStyleKey) private var glowStyle = GlowStyle.default
+    @AppStorage(Config.wheel3DEnabledKey) private var wheel3DEnabled = false
+    @AppStorage(Config.tiltReferenceKey) private var tiltReference = TiltReference.default
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsSection(title: L10n.glowStyleTitle) {
                     ForEach(GlowStyle.allCases, id: \.self) { style in
-                        let selected = glowStyle == style
-                        Button {
+                        SettingsChoiceRow(title: L10n.glowStyleName(style), selected: glowStyle == style) {
                             glowStyle = style
-                        } label: {
-                            HStack {
-                                Text(L10n.glowStyleName(style))
-                                    .font(.subheadline)
-                                    .foregroundStyle(Theme.ivory)
-                                Spacer(minLength: 0)
-                                Image(systemName: "checkmark")
-                                    .font(.footnote.weight(.bold))
-                                    .foregroundStyle(Theme.ivory)
-                                    .opacity(selected ? 1 : 0)
-                            }
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(selected ? .isSelected : [])
                     }
                 }
+                SettingsToggle(title: L10n.wheel3DTitle, isOn: $wheel3DEnabled)
+                // 傾きの基準は 3D 表示のときだけ効く。OFF の間も選んだ値は残し、選べないことだけを見せる
+                SettingsSection(title: L10n.tiltReferenceTitle) {
+                    ForEach(TiltReference.allCases, id: \.self) { reference in
+                        SettingsChoiceRow(title: L10n.tiltReferenceName(reference), selected: tiltReference == reference) {
+                            tiltReference = reference
+                        }
+                    }
+                }
+                .disabled(!wheel3DEnabled)
+                .opacity(wheel3DEnabled ? 1 : 0.5)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
@@ -184,6 +181,32 @@ private struct RouletteAdvancedSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Theme.ink800, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+    }
+}
+
+/// 設定の選択肢 1 行。選ばれている行にだけチェックを出す。
+private struct SettingsChoiceRow: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.ivory)
+                Spacer(minLength: 0)
+                Image(systemName: "checkmark")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(Theme.ivory)
+                    .opacity(selected ? 1 : 0)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

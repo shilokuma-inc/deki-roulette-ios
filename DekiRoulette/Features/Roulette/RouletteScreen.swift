@@ -6,6 +6,7 @@ struct RouletteScreen: View {
     @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
     @AppStorage(Config.soundEnabledKey) private var soundEnabled = true
     @AppStorage(Config.glowStyleKey) private var glowStyle = GlowStyle.default
+    @AppStorage(Config.wheel3DEnabledKey) private var wheel3DEnabled = false
     let model: RouletteModel
     @State private var sound = SpinSoundPlayer()
 
@@ -67,17 +68,7 @@ struct RouletteScreen: View {
 
     private var wheelSection: some View {
         VStack(spacing: 24) {
-            RouletteWheelView(
-                items: model.items,
-                rotation: model.rotation,
-                // 結果が出ている間だけ止まったスライスを強調する。項目を触って結果が消えれば強調も解ける
-                highlightedIndex: model.outcome?.index,
-                interactive: !model.spinning,
-                spinEasing: model.spinEasing,
-                glowStyle: glowStyle,
-                onBoundaryCross: dragCrossedBoundary,
-                onRelease: release
-            )
+            wheel
             // 帯は回転しない層に置く（盤面の `rotationEffect` の外側）。盤面のフリックを妨げないよう触れられなくする
             .overlay(alignment: .top) { resultBand }
             .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
@@ -100,6 +91,26 @@ struct RouletteScreen: View {
             .frame(height: 32)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// 盤面。設定の「3D 表示」が ON なら 3D で描き、OFF なら今の 2D の盤面のまま。
+    @ViewBuilder
+    private var wheel: some View {
+        if wheel3DEnabled {
+            Wheel3DView(items: model.items, rotation: model.rotation, spinEasing: model.spinEasing)
+        } else {
+            RouletteWheelView(
+                items: model.items,
+                rotation: model.rotation,
+                // 結果が出ている間だけ止まったスライスを強調する。項目を触って結果が消えれば強調も解ける
+                highlightedIndex: model.outcome?.index,
+                interactive: !model.spinning,
+                spinEasing: model.spinEasing,
+                glowStyle: glowStyle,
+                onBoundaryCross: dragCrossedBoundary,
+                onRelease: release
+            )
+        }
     }
 
     /// 針のすぐ下に重ねる結果の帯。盤面の下に結果の領域は持たず、結果のラベルはここで全文を出す（盤面のラベルは省略される）。

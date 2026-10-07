@@ -6,7 +6,8 @@ import SwiftUI
 /// `highlightedIndex` を渡すと、そのスライスを止まった位置として強調する（他を暗くし、渡された瞬間に
 /// 短く押し出して針を跳ねさせる）。nil に戻すと強調も解ける。
 /// ドラッグ中は盤面を指に追従させ（`WheelDrag`）、指を離したら、追従で回した角度と、離す直前の動きから出した
-/// 角速度（度/秒、時計回りが正）を `onRelease` に伝える。追従した角度は親が `rotation` に取り込むまでこのビューが持つ。
+/// 角速度（度/秒、時計回りが正）を `onRelease` に伝える。指を離さずにジェスチャが取り消されたときは角速度を nil で伝える。
+/// 追従した角度は親が `rotation` に取り込むまでこのビューが持つ。
 /// `interactive` が false の間（演出中）は追従もフリックもしない。
 /// `spinEasing` はスピンの曲線。フリックでは離した瞬間の速さに合わせて親が決める（ボタンでは `Config.spinEasing`）。
 struct RouletteWheelView: View {
@@ -15,7 +16,7 @@ struct RouletteWheelView: View {
     var highlightedIndex: Int? = nil
     var interactive = true
     var spinEasing = Config.spinEasing
-    var onRelease: ((_ angularVelocity: Double, _ dragRotation: Double) -> Void)? = nil
+    var onRelease: ((_ angularVelocity: Double?, _ dragRotation: Double) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulsing = false
@@ -66,10 +67,10 @@ struct RouletteWheelView: View {
             }
         }
         .onChange(of: dragging) { _, isDragging in
-            // 指を離さずにジェスチャが取り消されたときも、追従した角度を親に渡して残す（盤面がその角度で止まる）。
+            // 指を離さずにジェスチャが取り消されたときも、追従した角度を親に渡して残す（盤面がその角度で止まり、回さない）。
             // 指を離したときは `onEnded` が先に片付けるので、次のランループで残っているときだけ扱う
             guard !isDragging else { return }
-            Task { @MainActor in release(angularVelocity: 0) }
+            Task { @MainActor in release(angularVelocity: nil) }
         }
         .onChange(of: highlightedIndex) { _, index in
             // 新しい結果（または結果なし）になったら、指で動かした分の強調の解除を戻す
@@ -128,9 +129,9 @@ struct RouletteWheelView: View {
         if highlightedIndex != nil { displacedByDrag = true }
     }
 
-    /// 指を離した（またはジェスチャが取り消された）。追従した角度と角速度を親に渡す。
+    /// 指を離した（またはジェスチャが取り消された。角速度は nil）。追従した角度と角速度を親に渡す。
     /// `dragRotation` を 0 に戻すのと、親がそれを `rotation` に取り込むのを同じ更新に入れて、盤面が跳ねないようにする。
-    private func release(angularVelocity: Double) {
+    private func release(angularVelocity: Double?) {
         let active = dragSession.started && !dragSession.ignored
         dragSession.reset()
         flickSamples.reset()

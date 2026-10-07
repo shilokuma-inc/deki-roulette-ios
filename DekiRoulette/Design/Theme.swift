@@ -147,6 +147,19 @@ enum Theme {
     /// 他のスライスが暗くなる／戻るときの変化。
     static let stopDimAnimation = Animation.easeOut(duration: 0.25)
 
+    // MARK: 結果の帯
+
+    // 結果が出ている間、針のすぐ下に重ねて結果のラベルを全文で出す帯（寸法は `ResultBand`）。
+    // 盤面に重ねるので外観に依らず固定し、白系の地に盤面と同じ暗い文字で載せる。枠は止まったスライスの塗り
+    // （`sliceColor(at:count:)`）にして、どのスライスの結果かを帯からも読み取れるようにする。
+
+    /// 帯の地。
+    static let resultBandFill = Color(hex: 0xF5EFE6)
+    /// 帯の文字。
+    static let resultBandInk = onSlice
+    /// 帯の影。止まったスライスと沈めた盤面から浮かせる。
+    static let resultBandShadow = pointerShadow
+
     /// 削除を元に戻すトーストの出入り。
     static let undoToastAnimation = Animation.easeOut(duration: 0.2)
 

@@ -77,6 +77,8 @@ struct RouletteScreen: View {
                 onBoundaryCross: dragCrossedBoundary,
                 onRelease: release
             )
+            // 帯は回転しない層に置く（盤面の `rotationEffect` の外側）。盤面のフリックを妨げないよう触れられなくする
+            .overlay(alignment: .top) { resultBand }
             .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
 
             // 結果の有無で下のボタンが動かないよう高さを固定する。大きい文字では枠からはみ出るので最小高さだけ残す
@@ -101,6 +103,40 @@ struct RouletteScreen: View {
             .frame(height: 32)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// 針のすぐ下に重ねる結果の帯。盤面のラベルは省略されるので、ここで全文を出す。
+    /// 出し直しは下の結果ラベルと同じく `spinCount` 基準で、指で盤面を動かしても出し直さない。
+    /// 盤面と同じく装飾扱いで読み上げない（結果は Announcement で伝える）。
+    @ViewBuilder
+    private var resultBand: some View {
+        if let outcome = model.outcome, !model.spinning {
+            GeometryReader { proxy in
+                let diameter = Double(min(proxy.size.width, proxy.size.height))
+                let scale = diameter / WheelLabel.referenceDiameter
+                Text(outcome.label)
+                    .font(.system(size: ResultBand.fontSize(diameter: diameter), weight: .black))
+                    .foregroundStyle(Theme.resultBandInk)
+                    .lineLimit(1)
+                    .minimumScaleFactor(ResultBand.minimumScaleFactor)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 14 * scale)
+                    .padding(.vertical, 5 * scale)
+                    .background(Theme.resultBandFill, in: .capsule)
+                    // 項目を変えると `outcome` は消えるので、件数はスピン開始時と同じ
+                    .overlay(
+                        Capsule().strokeBorder(Theme.sliceColor(at: outcome.index, count: model.items.count), lineWidth: 2 * scale)
+                    )
+                    .shadow(color: Theme.resultBandShadow, radius: 4 * scale, y: 2 * scale)
+                    .frame(maxWidth: ResultBand.maxWidth(diameter: diameter))
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, ResultBand.top(diameter: diameter, pointerBounce: Theme.pointerBounceOffset))
+                    .revealOnAppear(reducedMotion: reduceMotion)
+                    .id(outcome.label + "\(model.spinCount)")
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
     }
 
     @ViewBuilder

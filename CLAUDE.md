@@ -64,6 +64,8 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 `rotation` が変わらないのでスピンの曲線の `.animation` は掛からない）。指を離すと `dragRotation` を 0 に戻し、
 同じ更新で `RouletteScreen` が `model.rotate(by:)` で取り込んでからスピンを始める（見た目は離した角度から続き、止まる累積角・
 音・触覚の時刻もその角度から求める）。演出中（`interactive == false`）に始まったドラッグは追従もフリックもしない。
+追従で針が境目を越えたら（`WheelDrag.boundaryCrossings`）`onBoundaryCross` で親に伝え、`model.crossDragBoundary(at:)` が
+`WheelDrag.FeedbackThrottle` で間引いて `dragBoundaryTick` を進め（触覚）、回転音を鳴らすかを返す（`sound.play(at: [0])`）。
 結果の表示は回転角ではなく `spinCount` で出し直すので、指で動かしても結果は出し直さない。
 あわせて `RouletteWheelView` がドラッグ中の位置を `FlickSampleBuffer` に記録し、指を離す直前
 `Config.flickSampleWindow` に中心のまわりを回った角度から `FlickSpin.angularVelocity` で角速度を出す（離した瞬間の
@@ -82,6 +84,8 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 刻み用のカウンタ `boundaryTick` / `revealTick`）。補間中の角度は observable でないので、`beginSpin` が
 `HapticSchedule.boundaryCrossings`（そのスピンの曲線 `spinEasing` を `CubicBezierCurve` で逆算）で境目を越える時刻を
 先に求め、`TickScheduler` の `Task` でカウンタを刻む。完了・中断でキャンセルし、`reducedMotion` では刻まない。
+指で盤面を動かしている間の境目は別のカウンタ `dragBoundaryTick` で、スピン中の `.selection` より強い
+`.impact(weight: Config.hapticDragBoundaryWeight)` を返す（利用者の操作なので `reducedMotion` でも鳴らす）。
 ON/OFF は `@AppStorage(Config.hapticsEnabledKey)`。設定の文言は「触覚フィードバック」だけで、長押しには触れない。
 
 ### 回転音の仕組み
@@ -91,7 +95,8 @@ ON/OFF は `@AppStorage(Config.hapticsEnabledKey)`。設定の文言は「触覚
 先に求め、`SpinSoundPlayer` が `ClickTrack` で 1 本の波形に焼いてから一度に流す（1 発ずつタイマーで鳴らすと
 リズムが揺れるため）。`Config.clickMinInterval` より詰まった時刻は間引く。音源は `Resources/Sounds/click.wav`
 （`scripts/make-click-sound.swift` で再生成）。`AVAudioSession` は `.ambient` で、消音スイッチに従い他アプリの
-音も止めない。`reducedMotion` では鳴らさない。ON/OFF は `@AppStorage(Config.soundEnabledKey)`。
+音も止めない。`reducedMotion` では鳴らさない。指で盤面を動かしている間は、境目を越えたその場で `play(at: [0])` で 1 回ずつ
+鳴らす（`reducedMotion` でも鳴らす）。ON/OFF は `@AppStorage(Config.soundEnabledKey)`。
 
 ### 並べ替えの仕組み
 

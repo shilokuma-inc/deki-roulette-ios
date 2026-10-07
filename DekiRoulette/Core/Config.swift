@@ -107,4 +107,9 @@ enum Config {
 
     /// クリック音の音量。密に重なっても耳に刺さらないところまで下げてある。
     static let clickGain: Float = 0.7
+
+    // MARK: 3D の盤の傾き
+
+    /// 3D の盤を端末の姿勢に合わせて倒す最大角（度）。これより大きく傾けても盤はここで止める。
+    static let wheelMaxTilt: Double = 25
 }

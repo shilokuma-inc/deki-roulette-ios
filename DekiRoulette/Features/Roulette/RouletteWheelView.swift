@@ -4,7 +4,8 @@ import SwiftUI
 /// 角度は 12 時を 0 度として時計回りに数える。針は 12 時に固定。
 ///
 /// `highlightedIndex` を渡すと、そのスライスを止まった位置として強調する（他を強く暗くし、止まったスライスに
-/// 縁取りと光彩を付け、渡された瞬間に短く押し出して針を跳ねさせる）。nil に戻すと強調も解ける。
+/// 縁取りと光彩を付け、渡された瞬間に短く押し出して針を跳ねさせ、そのあとも少し大きいまま前に出しておく）。
+/// nil に戻すと強調も解ける。
 /// ドラッグ中は盤面を指に追従させ（`WheelDrag`）、指を離したら、追従で回した角度と、離す直前の動きから出した
 /// 角速度（度/秒、時計回りが正）を `onRelease` に伝える。指を離さずにジェスチャが取り消されたときは角速度を nil で伝える。
 /// 追従した角度は親が `rotation` に取り込むまでこのビューが持つ。
@@ -223,8 +224,10 @@ struct RouletteWheelView: View {
                     .shadow(color: highlighted ? Theme.stopGlow : .clear, radius: Theme.stopGlowRadius * scale)
                     .animation(reduceMotion ? nil : Theme.stopDimAnimation, value: dimmed)
                     .animation(reduceMotion ? nil : Theme.stopDimAnimation, value: highlighted)
-                    // 押し出したスライスが隣に隠れないよう、強調中だけ前に出す
-                    .scaleEffect(highlighted && pulsing ? Theme.stopPulseScale : 1)
+                    // 止まった瞬間に押し出し、結果が出ている間は少し大きいまま残す。隣に隠れないよう強調中だけ前に出す。
+                    // 強調が解けたら（結果が消えた・指で動かした）弾ませて元の大きさに戻す
+                    .scaleEffect(sliceScale(highlighted: highlighted))
+                    .animation(reduceMotion ? nil : Theme.stopSettleAnimation, value: highlighted)
                     .zIndex(highlighted ? 1 : 0)
                 }
             }
@@ -238,6 +241,12 @@ struct RouletteWheelView: View {
             .zIndex(2)
         }
         .frame(width: side, height: side)
+    }
+
+    /// 止まったスライスの倍率。動きを減らす設定では大きさを変えない（暗くする・縁取り・光彩だけにする）。
+    private func sliceScale(highlighted: Bool) -> CGFloat {
+        guard highlighted, !reduceMotion else { return 1 }
+        return pulsing ? Theme.stopPulseScale : Theme.stopHoldScale
     }
 
     private func polar(center: CGPoint, angle: Double, radius: CGFloat) -> CGPoint {

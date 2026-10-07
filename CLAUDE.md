@@ -56,14 +56,20 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 
 盤面は 12 時を 0 度、時計回り。`SliceShape` は `clockwise: false` で画面上は時計回りになる（y 軸が下向きのため）。
 
-盤面のフリックでも始められる。`RouletteWheelView` がドラッグ中の位置を `FlickSampleBuffer` に記録し、指を離す直前
+盤面のフリックでも始められる。ドラッグ中は盤面を指に追従させる。`RouletteWheelView` が `WheelDrag.rotationDelta` で
+指が中心のまわりを回った角度を `@State dragRotation` に足し、`rotationEffect(rotation + dragRotation)` で回す（ドラッグ中は
+`rotation` が変わらないので `Theme.spinAnimation` の `.animation` は掛からない）。指を離すと `dragRotation` を 0 に戻し、
+同じ更新で `RouletteScreen` が `model.rotate(by:)` で取り込んでからスピンを始める（見た目は離した角度から続き、止まる累積角・
+音・触覚の時刻もその角度から求める）。演出中（`interactive == false`）に始まったドラッグは追従もフリックもしない。
+結果の表示は回転角ではなく `spinCount` で出し直すので、指で動かしても結果は出し直さない。
+あわせて `RouletteWheelView` がドラッグ中の位置を `FlickSampleBuffer` に記録し、指を離す直前
 `Config.flickSampleWindow` に中心のまわりを回った角度から `FlickSpin.angularVelocity` で角速度を出す（離した瞬間の
 `velocity` は揺れが大きく、同じフリックでも回らないことがあるので使わない）。それを
 `FlickSpin.spin` で周回数と向き（`SpinDirection`、角速度の符号）に写して `beginSpin(reducedMotion:fullSpins:direction:)` に渡す
-（閾値未満は何もしない）。強さは周回数にだけ効き、止まる位置の式は変えない。反時計回りでは `RouletteMath.nextRotation` が
+（閾値未満ではスピンを始めず、盤面は離した角度のまま）。強さは周回数にだけ効き、止まる位置の式は変えない。反時計回りでは `RouletteMath.nextRotation` が
 累積角を減らす向きに決め、`SpinTicks` / `HapticSchedule` は `to < from` を符号を反転して同じ式で数える。モデルは直前のフリックの
 向きを `lastDirection` に覚え、「スピン」ボタンはその向きで回す（初期値は時計回り、保存しない）。停止後は `outcome.index` を `highlightedIndex` として渡し、
-他のスライスを `Theme.sliceDim` で沈める。押し出しと針の跳ねは停止の瞬間だけで、`accessibilityReduceMotion` では省く。
+他のスライスを `Theme.sliceDim` で沈める（結果が出たあとに指で動かしたら強調だけ解く）。押し出しと針の跳ねは停止の瞬間だけで、`accessibilityReduceMotion` では省く。
 
 ### 触覚の仕組み
 

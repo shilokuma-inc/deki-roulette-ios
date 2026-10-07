@@ -12,6 +12,9 @@ import SwiftUI
 /// 押し出して針を跳ねさせ、結果が出ている間は前に出したままにする）。
 /// ドラッグ追従とフリックは 2D と同じ `WheelDragArea` が盤面の枠で受け、追従で回した角度を盤の回転に足す（補間はしない）。
 /// 角速度は画面平面上の指の動きで出す。結果が出たあとに指で動かしたら強調だけ解く。
+/// 盤は端末の姿勢で傾け、動かした勢いで支点まわりに揺らす（`WheelMotionModel`）。揺れるのは待機中と回転中だけで、
+/// 結果表示中は正面へ戻して止め、姿勢の購読も止める。視差効果を減らす設定では揺らさず正面に置く。
+/// 姿勢を読むのは、この盤面が画面に出ていてアプリが前面にある間だけ。揺れは見た目だけで、回転・結果・音・触覚には影響しない。
 struct Wheel3DView: View {
     let items: [Item]
     let rotation: Double
@@ -27,6 +30,20 @@ struct Wheel3DView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(Config.tiltReferenceKey) private var tiltReference = TiltReference.default
+    /// 姿勢の購読。`CMMotionManager` は使い回したいので、ビューを作り直すたびには作らず、最初に画面に出たときに作る。
+    @State private var motion: WheelMotionModel?
+    @State private var visible = false
+
+    /// 盤の傾き。視差効果を減らす設定では正面。
+    private var tilt: WheelTilt {
+        reduceMotion ? .zero : motion?.tilt ?? .zero
+    }
+
+    private var swayMode: SwayMode {
+        SwayMode.mode(showingResult: result != nil, reduceMotion: reduceMotion)
+    }
 
     var body: some View {
         WheelDragArea(
@@ -40,7 +57,7 @@ struct Wheel3DView: View {
                 // 指を離した更新では、親が追従の角度を `rotation` に取り込むのと `dragRotation` を 0 に戻すのが同じ更新に入るので、
                 // 盤は離した角度から続く
                 Wheel3DSurface(
-                    items: items, rotation: rotation + dragRotation, diameter: side, displayScale: displayScale,
+                    items: items, rotation: rotation + dragRotation, tilt: tilt, diameter: side, displayScale: displayScale,
                     // 結果が出たあとに指で動かしたら強調を解く（結果の帯は残る）
                     highlight: displacedByDrag ? nil : highlightedIndex.map { Wheel3DHighlight(index: $0, glowStyle: glowStyle) },
                     result: result, reduceMotion: reduceMotion
@@ -54,7 +71,29 @@ struct Wheel3DView: View {
             .animation(reduceMotion ? nil : Theme.spinAnimation(easing: spinEasing), value: rotation)
             .aspectRatio(1, contentMode: .fit)
         }
+        .onAppear {
+            if motion == nil { motion = WheelMotionModel(source: DeviceMotionSource()) }
+            visible = true
+            // 「画面を開いたときの持ち方」基準は、画面を開いたときの姿勢を正面にする
+            motion?.recaptureBaseline()
+            updateMotion()
+        }
+        .onDisappear {
+            visible = false
+            updateMotion()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // アプリに戻ったときも持ち直していることが多いので、基準を取り直す
+            if phase == .active { motion?.recaptureBaseline() }
+            updateMotion()
+        }
+        .onChange(of: swayMode) { updateMotion() }
+        .onChange(of: tiltReference) { updateMotion() }
         .accessibilityHidden(true)
+    }
+
+    private func updateMotion() {
+        motion?.update(active: visible && scenePhase == .active, mode: swayMode, reference: tiltReference)
     }
 }
 
@@ -76,6 +115,7 @@ struct Wheel3DHighlight: Equatable {
 private struct Wheel3DSurface: View, Animatable {
     let items: [Item]
     var rotation: Double
+    let tilt: WheelTilt
     let diameter: CGFloat
     let displayScale: CGFloat
     let highlight: Wheel3DHighlight?
@@ -89,7 +129,7 @@ private struct Wheel3DSurface: View, Animatable {
 
     var body: some View {
         Wheel3DSceneView(
-            items: items, rotation: rotation, diameter: diameter, displayScale: displayScale,
+            items: items, rotation: rotation, tilt: tilt, diameter: diameter, displayScale: displayScale,
             highlight: highlight, result: result, reduceMotion: reduceMotion
         )
     }
@@ -98,6 +138,7 @@ private struct Wheel3DSurface: View, Animatable {
 private struct Wheel3DSceneView: UIViewRepresentable {
     let items: [Item]
     let rotation: Double
+    let tilt: WheelTilt
     let diameter: CGFloat
     let displayScale: CGFloat
     let highlight: Wheel3DHighlight?
@@ -123,6 +164,7 @@ private struct Wheel3DSceneView: UIViewRepresentable {
     func updateUIView(_ view: SCNView, context: Context) {
         context.coordinator.update(labels: items.map(\.label), diameter: diameter, displayScale: displayScale)
         context.coordinator.spin(to: rotation)
+        context.coordinator.tilt(to: tilt)
         context.coordinator.highlight(highlight, reduceMotion: reduceMotion)
         context.coordinator.show(result: result, reduceMotion: reduceMotion)
     }
@@ -195,6 +237,13 @@ final class Wheel3DScene {
     /// 盤を累積の回転角 `rotation`（度、時計回りが正）まで回す。
     func spin(to rotation: Double) {
         spinNode.eulerAngles.z = Float(WheelGeometry.spinAngle(rotation: rotation))
+    }
+
+    /// 盤を傾ける（針と結果の帯も一緒に）。支点は盤の表面の中心で、支柱は傾けない。
+    /// `pitch` が正で上端が奥へ（x 軸まわりに負）、`roll` が正で右端が手前へ（y 軸まわりに負）倒れる。
+    func tilt(to tilt: WheelTilt) {
+        tiltNode.eulerAngles.x = Float(-tilt.pitch * .pi / 180)
+        tiltNode.eulerAngles.y = Float(-tilt.roll * .pi / 180)
     }
 
     /// 結果の帯を出す・消す。`id` が変わったときだけ焼き直し、2D の `revealOnAppear` と同じ動きで現れる

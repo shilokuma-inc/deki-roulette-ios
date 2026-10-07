@@ -233,6 +233,30 @@ struct Wheel3DSceneTests {
         #expect(!isClose(color, srgb(Theme.sliceColor(at: 0, count: 4))), "\(color)")
     }
 
+    // MARK: 傾き
+
+    @Test func 傾けると針も盤と一緒に動き正面に戻すと元に戻る() throws {
+        let scene = makeScene(count: 4, rotation: 0)
+        let pointer = { (pixels: Pixels) in pixels.color(at: self.location(x: 0, y: Double(self.size) / 2 - 8, pixels: pixels)) }
+        scene.tilt(to: WheelTilt(pitch: 25, roll: 0))
+        // 上端が奥へ倒れるので、針は画面上で下（中心寄り）に動いて元の位置から外れる
+        #expect(!isClose(pointer(try render(scene)), srgb(Theme.flare)))
+        scene.tilt(to: .zero)
+        #expect(isClose(pointer(try render(scene)), srgb(Theme.flare)))
+    }
+
+    @Test func 上端が奥へ倒れると盤の上端は中心へ寄って見える() throws {
+        let scene = makeScene(count: 4, rotation: 0)
+        scene.tilt(to: WheelTilt(pitch: 25, roll: 0))
+        let pixels = try render(scene)
+        // 正面ではスライス 0 の外周寄りの位置が、倒すと盤より外になる
+        let top = pixels.color(at: location(angle: 10, fraction: 0.95, pixels: pixels))
+        #expect(!isClose(top, srgb(Theme.sliceColor(at: 0, count: 4))), "\(top)")
+        // 下端は手前に起きるので、同じ位置にまだスライス 1 がある
+        let bottom = pixels.color(at: location(angle: 170, fraction: 0.9, pixels: pixels))
+        #expect(isClose(bottom, srgb(Theme.sliceColor(at: 1, count: 4))), "\(bottom)")
+    }
+
     // MARK: 針と結果の帯
 
     @Test func 針は12時に塗りの色のまま出る() throws {

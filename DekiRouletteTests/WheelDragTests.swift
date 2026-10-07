@@ -46,6 +46,18 @@ struct WheelDragTests {
         #expect(WheelDrag.rotationDelta(from: center, to: center, center: center) == 0)
     }
 
+    @Test func 両端が外でも中心付近を横切る区間では回さない() {
+        // 中心の左右 30pt を 1 区間で結ぶ。端だけで見ると 180 度回ったことになる
+        let outside = Config.flickDeadZoneRadius + 6
+        #expect(WheelDrag.rotationDelta(from: point(180, radius: outside), to: point(0, radius: outside), center: center) == 0)
+    }
+
+    @Test func 中心付近を横切らない区間は端が近くても回す() {
+        // 弦が中心から不感帯の半径より離れていれば、端の点が内側に寄っていても角度どおりに回す
+        let delta = WheelDrag.rotationDelta(from: point(-10, radius: 40), to: point(10, radius: 40), center: center)
+        #expect(abs(delta - 20) < 1e-9)
+    }
+
     @Test func 中心付近を通り抜けても抜けた先から追従する() {
         // 9 時から中心を通って 3 時へ抜ける。中心付近の区間は数えないので、盤面は 180 度跳ねない
         let path = [point(180), point(180, radius: 30), center, point(0, radius: 30), point(0), point(20)]

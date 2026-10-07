@@ -105,6 +105,16 @@ struct FlickSpinTests {
         #expect(FlickSpin.angularVelocity(samples: samples, center: center) == 0)
     }
 
+    @Test func 中心付近を挟んだ前後の点をつながない() {
+        // 9 時 → 中心 → 3 時と払う。中心の点を除いて左右をつなぐと半周回ったことになる
+        let samples = [
+            FlickSpin.Sample(time: 0, location: CGPoint(x: center.x - 100, y: center.y)),
+            FlickSpin.Sample(time: 0.05, location: center),
+            FlickSpin.Sample(time: 0.1, location: CGPoint(x: center.x + 100, y: center.y)),
+        ]
+        #expect(FlickSpin.angularVelocity(samples: samples, center: center) == 0)
+    }
+
     @Test func 記録が1点以下なら0() {
         #expect(FlickSpin.angularVelocity(samples: [], center: center) == 0)
         #expect(FlickSpin.angularVelocity(samples: Array(arc(degreesPerSecond: 600, duration: 0.1).prefix(1)), center: center) == 0)

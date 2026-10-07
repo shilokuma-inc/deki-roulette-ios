@@ -14,22 +14,19 @@ enum FlickSpin {
     /// 画面上の時計回りが正。`samples` は時刻順で、最後の 1 点が指を離した位置。
     ///
     /// 離した瞬間の `DragGesture.Value.velocity` は最後の数サンプルで決まり、離すタイミングで大きく揺れるので使わない。
-    /// 中心に近すぎる点は角度が定まらないので除く。
+    /// 隣り合う点の角度差は追従と同じ `WheelDrag.rotationDelta` で測るので、中心付近に掛かる区間は数えない
+    /// （中心付近の点を除いてから前後をつなぐと、中心を挟んだ左右の点が半周回ったことになる）。
     static func angularVelocity(samples: [Sample], center: CGPoint) -> Double {
         // 窓は指を離した時刻から取り、窓の中の点だけを使う。窓をまたぐ区間や、中心付近で止めていた間より前の動きを
         // 足すと、最後に止めていても手前の動きで回ってしまう
         guard let releaseTime = samples.last?.time else { return 0 }
         let windowStart = releaseTime - Config.flickSampleWindow
-        let recent = samples.filter {
-            $0.time >= windowStart && WheelDrag.distance(from: center, to: $0.location) >= Config.flickDeadZoneRadius
-        }
+        let recent = samples.filter { $0.time >= windowStart }
         guard let first = recent.first, let last = recent.last, last.time > first.time else { return 0 }
 
         var swept = 0.0
         for (from, to) in zip(recent, recent.dropFirst()) {
-            swept += WheelDrag.normalized(
-                WheelDrag.angle(of: to.location, around: center) - WheelDrag.angle(of: from.location, around: center)
-            )
+            swept += WheelDrag.rotationDelta(from: from.location, to: to.location, center: center)
         }
         return swept / (last.time - first.time)
     }

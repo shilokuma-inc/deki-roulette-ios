@@ -4,11 +4,11 @@ import Foundation
 /// ドラッグ中に盤面を指に追従させる角度の計算。フリックの角速度（`FlickSpin`）と同じ角度の測り方を使う。
 enum WheelDrag {
     /// 指が `from` から `to` へ動いたとき、盤面中心 `center` のまわりに盤面を回す角度（度、画面上の時計回りが正）。
-    /// 中心から `Config.flickDeadZoneRadius` 未満の点は角度が定まらないので、どちらかが入っていれば 0（盤面は動かさない）。
+    /// 中心から `Config.flickDeadZoneRadius` 未満のところは角度が定まらないので、区間がそこに掛かれば 0（盤面は動かさない）。
+    /// 両端が外にあっても、間で中心付近を横切る区間は 0 にする（端だけで見ると半回転して見える）。
     /// 中心付近を通って反対側へ抜けても、抜けた先から改めて追従するだけで盤面は跳ねない。
     static func rotationDelta(from: CGPoint, to: CGPoint, center: CGPoint) -> Double {
-        let deadZone = Config.flickDeadZoneRadius
-        guard distance(from: center, to: from) >= deadZone, distance(from: center, to: to) >= deadZone else { return 0 }
+        guard distance(from: center, toSegment: from, to) >= Config.flickDeadZoneRadius else { return 0 }
         return normalized(angle(of: to, around: center) - angle(of: from, around: center))
     }
 
@@ -27,5 +27,14 @@ enum WheelDrag {
 
     static func distance(from a: CGPoint, to b: CGPoint) -> Double {
         hypot(Double(b.x - a.x), Double(b.y - a.y))
+    }
+
+    /// 点 `point` から `a`〜`b` の線分までの最短距離。
+    static func distance(from point: CGPoint, toSegment a: CGPoint, _ b: CGPoint) -> Double {
+        let dx = Double(b.x - a.x), dy = Double(b.y - a.y)
+        let lengthSquared = dx * dx + dy * dy
+        guard lengthSquared > 0 else { return distance(from: point, to: a) }
+        let t = min(max((Double(point.x - a.x) * dx + Double(point.y - a.y) * dy) / lengthSquared, 0), 1)
+        return distance(from: point, to: CGPoint(x: Double(a.x) + t * dx, y: Double(a.y) + t * dy))
     }
 }

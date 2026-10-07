@@ -97,3 +97,69 @@ enum SwayKick {
         return (pitch: clamp(gain * (y + z)), roll: clamp(gain * x))
     }
 }
+
+/// 3D の盤の揺れ（2 軸のばね）。姿勢を読み取るたびに `advance` で、読み取りの時刻の差だけ進める。
+struct WheelSway: Equatable, Sendable {
+    var pitch = SpringAxis()
+    var roll = SpringAxis()
+    /// 直前に進めた読み取りの時刻。nil なら次の 1 回は時間を進めない（最初の読み取り・購読を止めたあと）。
+    var lastTimestamp: TimeInterval?
+
+    /// 今の盤の傾き。
+    var tilt: WheelTilt { WheelTilt(pitch: pitch.position, roll: roll.position) }
+
+    /// 勢い `kick`（度/秒、`SwayKick.velocity`）を足し、時刻 `timestamp` まで目標 `target` へ向けて進める。
+    /// `kick` は `nominalInterval`（姿勢を読む間隔）ごとに足す量なので、前の読み取りからの経過時間の割合を掛けて足す
+    /// （読み取りが詰まっても間引かれても、同じ勢いなら同じだけ揺れる）。経過時間はばねと同じ `SpringAxis.maxStepDuration` で抑える。
+    /// 最初の読み取りと時刻が戻ったときは、時間も勢いも進めない。
+    mutating func advance(
+        toward target: WheelTilt,
+        kick: (pitch: Double, roll: Double) = (0, 0),
+        at timestamp: TimeInterval,
+        spring: SpringParameters = .wheelSway,
+        nominalInterval: TimeInterval = Config.motionUpdateInterval
+    ) {
+        let duration = min(lastTimestamp.map { max(0, timestamp - $0) } ?? 0, SpringAxis.maxStepDuration)
+        lastTimestamp = timestamp
+        let share = nominalInterval > 0 ? duration / nominalInterval : 0
+        pitch.kick(kick.pitch * share)
+        roll.kick(kick.roll * share)
+        pitch.step(toward: target.pitch, duration: duration, spring: spring)
+        roll.step(toward: target.roll, duration: duration, spring: spring)
+    }
+
+    /// `target` で止まったとみなせるか。
+    func isAtRest(at target: WheelTilt) -> Bool {
+        pitch.isAtRest(at: target.pitch) && roll.isAtRest(at: target.roll)
+    }
+
+    /// 購読を止めた。傾きと速度は残し、間が空いた分の時間は進めない。
+    mutating func pause() {
+        lastTimestamp = nil
+    }
+}
+
+/// 3D の盤をどう揺らすか。揺らす場面は待機中と回転中だけで、結果表示中は正面に戻して止める。
+enum SwayMode: Equatable, Sendable {
+    /// 端末の傾きに追従し、動かした勢いで揺れる（待機中・回転中）。
+    case follow
+    /// 正面へばねで戻し、止まったら姿勢の購読も止める（結果表示中）。
+    case settle
+    /// 揺らさず正面に置く（視差効果を減らす）。
+    case still
+
+    static func mode(showingResult: Bool, reduceMotion: Bool) -> SwayMode {
+        if reduceMotion { return .still }
+        return showingResult ? .settle : .follow
+    }
+
+    /// 姿勢を購読するか。盤面が画面に出ていてアプリが前面にある（`active`）間で、揺らす場面か、正面へ戻している途中だけ。
+    func subscribes(active: Bool, atRest: Bool) -> Bool {
+        guard active else { return false }
+        switch self {
+        case .follow: return true
+        case .settle: return !atRest
+        case .still: return false
+        }
+    }
+}

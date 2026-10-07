@@ -132,8 +132,15 @@ enum Theme {
     static let stopOutline = Color(hex: 0xF5EFE6)
     /// 縁取りの太さ（基準直径 `WheelLabel.referenceDiameter` での pt。盤面の大きさに比例させる）。
     static let stopOutlineWidth: CGFloat = 3
-    /// 止まったスライスから外側へにじませる光彩。
-    static let stopGlow = Color(hex: 0xF5EFE6).opacity(0.8)
+    /// 光彩の不透明度。白系・止まったスライスの色のどちらにも使う。
+    static let stopGlowOpacity = 0.8
+    /// 止まったスライスから外側へにじませる光彩（白系、`GlowStyle.white`）。
+    static let stopGlow = Color(hex: 0xF5EFE6).opacity(stopGlowOpacity)
+    /// 虹色の光彩（`GlowStyle.rainbow`）。新しい色は足さず、色相順に並んだスライスの 10 色を盤面の中心のまわりに一周させる。
+    /// 盤面の塗りと同じ色なので `gold` / `flare` の用途とは重ならず、文字にも使わない。
+    static let stopGlowRainbow = AngularGradient(
+        colors: sliceColors + [sliceColors[0]], center: .center, startAngle: .degrees(-90), endAngle: .degrees(270)
+    )
     /// 光彩の半径（基準直径での pt）。
     static let stopGlowRadius: CGFloat = 10
     /// 止まった瞬間にスライスを押し出す倍率。戻りで `stopHoldScale` に収まる。

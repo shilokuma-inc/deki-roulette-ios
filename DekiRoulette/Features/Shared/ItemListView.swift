@@ -22,6 +22,8 @@ struct ItemListView: View {
     @Environment(SavedListsModel.self) private var savedLists
 
     @State private var input = ""
+    /// 同名の確認ダイアログで「追加する」を待っているラベル。ダイアログを出している間だけ持つ。
+    @State private var pendingDuplicateLines: [String]?
     @State private var confirmingRemoveAll = false
     /// 直前に「✕」かスワイプで削除した項目。トーストを出している間だけ持ち、期限が来ると確定する。
     @State private var pendingRemoval: RemovedItem?
@@ -81,6 +83,20 @@ struct ItemListView: View {
         // 上限に達したり演出が始まったりして入力できなくなったら、開いたままのキーボードを閉じる
         .onChange(of: inputDisabled) { _, disabled in
             if disabled { inputFocused = false }
+        }
+        // 同名の項目は追加を止めず、確かめるだけ。読み込み・復元・元に戻すでは出さない
+        .alert(
+            L10n.duplicateAddTitle,
+            isPresented: Binding(
+                get: { pendingDuplicateLines != nil },
+                set: { if !$0 { pendingDuplicateLines = nil } }
+            ),
+            presenting: pendingDuplicateLines
+        ) { lines in
+            Button(L10n.duplicateAddCancel, role: .cancel) { inputFocused = true }
+            Button(L10n.duplicateAddConfirm) { add(lines) }
+        } message: { _ in
+            Text(L10n.duplicateAddMessage)
         }
         .alert(L10n.saveListTitle, isPresented: $savingList) {
             TextField(L10n.saveListNamePlaceholder, text: $listName)
@@ -326,7 +342,18 @@ struct ItemListView: View {
 
     private func handleAdd() {
         let lines = lines
-        guard !lines.isEmpty, !inputDisabled else { return }
+        guard !lines.isEmpty, !inputDisabled, pendingDuplicateLines == nil else { return }
+        guard !DuplicateLabels.conflicts(adding: lines, to: items) else {
+            // 送信の合図に打った末尾の改行は落とし、「やめる」で戻ったときにそのまま続きを直せるようにする
+            while input.last?.isNewline == true { input.removeLast() }
+            pendingDuplicateLines = lines
+            return
+        }
+        add(lines)
+    }
+
+    private func add(_ lines: [String]) {
+        guard !inputDisabled else { return }
         let added = onAdd(lines)
         input = ""
         // 続けて次の項目を入力できるようにフォーカスを保つ。キーボードは下スワイプで閉じられる

@@ -3,7 +3,8 @@ import Observation
 
 /// 3D の盤を傾けるための端末の姿勢の購読。取得元（`MotionSource`）を差し替えられるようにし、
 /// 購読の開始・停止と「画面を開いたときの持ち方」基準の取り直しを持つ。目標の傾きの計算は `TiltMapping` に任せる。
-/// どの場面で購読するか（盤面が出ている間・揺らす場面だけ）は View が `start` / `stop` で決める。
+/// 盤の揺れ（`WheelSway`）も持ち、読み取るたびに進めて `tilt` に出す。どの場面で購読するかは View が `update` で
+/// 渡す状態（盤面が画面に出ているか・揺らし方 `SwayMode`）から決める。
 @MainActor
 @Observable
 final class WheelMotionModel {
@@ -13,8 +14,13 @@ final class WheelMotionModel {
     private(set) var sample: MotionSample?
     /// 「画面を開いたときの持ち方」基準の正面とする重力の向き。購読を止めても残す。
     private(set) var baseline: DeviceGravity?
+    /// 盤の今の傾き（ばねで追従・揺れた後）。3D の盤面はこれで傾ける。
+    private(set) var tilt = WheelTilt.zero
 
     @ObservationIgnored private let source: any MotionSource
+    @ObservationIgnored private var sway = WheelSway()
+    @ObservationIgnored private var mode = SwayMode.follow
+    @ObservationIgnored private var reference = TiltReference.default
     /// 次に読み取った姿勢を基準にする。
     @ObservationIgnored private var capturesNextSample = false
 
@@ -33,12 +39,29 @@ final class WheelMotionModel {
         }
     }
 
-    /// 購読を止める。基準は残す。
+    /// 購読を止める。基準と盤の傾きは残す（再開したら間の時間は進めない）。
     func stop() {
         guard isRunning else { return }
         source.stop()
         isRunning = false
         sample = nil
+        sway.pause()
+    }
+
+    /// 盤面の状態を渡し、揺らし方と購読の要否を決める。`active` は盤面が画面に出ていてアプリが前面にあること。
+    /// 揺らさない（`still`）なら盤を即座に正面に置き、正面へ戻している（`settle`）なら止まるまで購読を続ける。
+    func update(active: Bool, mode: SwayMode, reference: TiltReference) {
+        self.mode = mode
+        self.reference = reference
+        if mode == .still {
+            sway = WheelSway()
+            setTilt(.zero)
+        }
+        if mode.subscribes(active: active, atRest: sway.isAtRest(at: .zero)) {
+            start()
+        } else {
+            stop()
+        }
     }
 
     /// 次に読み取った姿勢を基準にする（今の姿勢は古いことがあるので使わない）。
@@ -63,5 +86,35 @@ final class WheelMotionModel {
             capturesNextSample = false
         }
         self.sample = sample
+        advanceSway(with: sample)
+    }
+
+    private func advanceSway(with sample: MotionSample) {
+        switch mode {
+        case .follow:
+            let kick = SwayKick.velocity(
+                x: sample.userAcceleration.x, y: sample.userAcceleration.y, z: sample.userAcceleration.z,
+                reduceMotion: false
+            )
+            sway.advance(toward: targetTilt(reference: reference, reduceMotion: false), kick: kick, at: sample.timestamp)
+            setTilt(sway.tilt)
+        case .settle:
+            sway.advance(toward: .zero, at: sample.timestamp)
+            if sway.isAtRest(at: .zero) {
+                // 正面で止まったら、正面に揃えて購読も止める（次のスピンか結果が消えたときに再開する）
+                sway = WheelSway()
+                setTilt(.zero)
+                stop()
+            } else {
+                setTilt(sway.tilt)
+            }
+        case .still:
+            setTilt(.zero)
+        }
+    }
+
+    /// 変わったときだけ書く（同じ値で盤面を描き直させない）。
+    private func setTilt(_ value: WheelTilt) {
+        if tilt != value { tilt = value }
     }
 }

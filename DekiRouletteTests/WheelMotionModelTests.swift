@@ -126,4 +126,76 @@ struct WheelMotionModelTests {
         #expect(model.baseline == raised(45).gravity)
         #expect(abs(pitch(model, .grip) - 5) < 1e-9)
     }
+
+    // MARK: 揺れ
+
+    @Test func 揺らす場面では購読して姿勢の傾きへ寄る() {
+        let model = WheelMotionModel(source: source)
+        model.update(active: true, mode: .follow, reference: .flat)
+        #expect(source.isRunning)
+        for step in 0...120 {
+            source.send(raised(20, at: Double(step) / 60))
+        }
+        #expect(abs(model.tilt.pitch - 20) < 1)
+    }
+
+    @Test func 画面に出ていなければ購読しない() {
+        let model = WheelMotionModel(source: source)
+        model.update(active: false, mode: .follow, reference: .flat)
+        #expect(!source.isRunning)
+        model.update(active: true, mode: .follow, reference: .flat)
+        #expect(source.isRunning)
+        model.update(active: false, mode: .follow, reference: .flat)
+        #expect(!source.isRunning)
+    }
+
+    @Test func 結果表示中は正面へ戻して止まったら購読をやめる() {
+        let model = WheelMotionModel(source: source)
+        model.update(active: true, mode: .follow, reference: .flat)
+        for step in 0...60 {
+            source.send(raised(20, at: Double(step) / 60))
+        }
+        #expect(model.tilt.pitch > 10)
+        model.update(active: true, mode: .settle, reference: .flat)
+        #expect(source.isRunning)
+        var step = 0
+        while source.isRunning && step < 600 {
+            step += 1
+            source.send(raised(20, at: 1 + Double(step) / 60))
+        }
+        #expect(!source.isRunning)
+        #expect(model.tilt == .zero)
+        // 止まったあとに結果表示が続いても再開しない
+        model.update(active: true, mode: .settle, reference: .flat)
+        #expect(!source.isRunning)
+        // 次のスピン（揺らす場面）で再開する
+        model.update(active: true, mode: .follow, reference: .flat)
+        #expect(source.isRunning)
+    }
+
+    @Test func 正面で止まっていれば結果表示になっても購読しない() {
+        let model = WheelMotionModel(source: source)
+        model.update(active: true, mode: .settle, reference: .flat)
+        #expect(!source.isRunning)
+    }
+
+    @Test func 視差効果を減らす設定では購読せず正面に置く() {
+        let model = WheelMotionModel(source: source)
+        model.update(active: true, mode: .follow, reference: .flat)
+        for step in 0...60 {
+            source.send(raised(20, at: Double(step) / 60))
+        }
+        model.update(active: true, mode: .still, reference: .flat)
+        #expect(!source.isRunning)
+        #expect(model.tilt == .zero)
+    }
+
+    @Test func 持ち方基準では開いたときの姿勢が正面() {
+        let model = WheelMotionModel(source: source)
+        model.update(active: true, mode: .follow, reference: .grip)
+        for step in 0...120 {
+            source.send(raised(60, at: Double(step) / 60))
+        }
+        #expect(abs(model.tilt.pitch) < 0.5)
+    }
 }

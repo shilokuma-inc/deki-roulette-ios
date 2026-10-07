@@ -1529,6 +1529,23 @@
           }
         }
       }
+    },
+    "duplicateLabelNotice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate name"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ名前の項目があります"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

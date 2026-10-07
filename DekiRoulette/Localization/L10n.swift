@@ -17,6 +17,7 @@ enum L10n {
     static func atCapacity(_ max: Int) -> String { fmt("atCapacity", max) }
     static func itemCount(_ count: Int, _ max: Int) -> String { fmt("itemCount", count, max) }
     static func removeAccessibilityLabel(_ label: String) -> String { fmt("removeAccessibilityLabel", label) }
+    static var duplicateLabelNotice: String { tr("duplicateLabelNotice") }
     static var helpTitle: String { tr("helpTitle") }
     static var helpBasic: String { tr("helpBasic") }
     static var helpAimTitle: String { tr("helpAimTitle") }

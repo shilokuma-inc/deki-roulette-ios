@@ -939,23 +939,6 @@
         }
       }
     },
-    "resultPlaceholder" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spin the wheel to see the result"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スピンすると、ここに結果が出ます"
-          }
-        }
-      }
-    },
     "rouletteNavLabel" : {
       "extractionState" : "manual",
       "localizations" : {

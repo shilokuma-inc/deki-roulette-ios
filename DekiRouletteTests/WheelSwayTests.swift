@@ -175,3 +175,74 @@ struct WheelSwayTests {
         #expect(kick.pitch == 0 && kick.roll == 0)
     }
 }
+
+struct WheelSwayStateTests {
+    @Test func 最初の読み取りでは時間を進めない() {
+        var sway = WheelSway()
+        sway.advance(toward: WheelTilt(pitch: 20, roll: 0), at: 5)
+        #expect(sway.tilt == .zero)
+        #expect(sway.lastTimestamp == 5)
+    }
+
+    @Test func 読み取りの時刻の差だけ目標へ寄る() {
+        var sway = WheelSway()
+        let target = WheelTilt(pitch: 20, roll: -10)
+        sway.advance(toward: target, at: 0)
+        for step in 1...120 {
+            sway.advance(toward: target, at: Double(step) / 60)
+        }
+        // 周期 0.6 秒・減衰比 0.3 なら 2 秒でほぼ収まる
+        #expect(abs(sway.tilt.pitch - 20) < 1)
+        #expect(abs(sway.tilt.roll + 10) < 1)
+    }
+
+    @Test func 勢いで目標を越えて揺れる() {
+        var sway = WheelSway()
+        sway.advance(toward: .zero, kick: (pitch: 100, roll: 0), at: 0)
+        sway.advance(toward: .zero, at: 0.05)
+        #expect(sway.tilt.pitch > 0)
+        #expect(!sway.isAtRest(at: .zero))
+    }
+
+    @Test func 止めたあとの最初の読み取りでは間の時間を進めない() {
+        var sway = WheelSway()
+        sway.advance(toward: WheelTilt(pitch: 20, roll: 0), at: 0)
+        sway.advance(toward: WheelTilt(pitch: 20, roll: 0), at: 0.05)
+        let before = sway.tilt
+        sway.pause()
+        sway.advance(toward: WheelTilt(pitch: 20, roll: 0), at: 100)
+        #expect(sway.tilt == before)
+    }
+
+    @Test func 時刻が戻っても進めない() {
+        var sway = WheelSway()
+        sway.advance(toward: WheelTilt(pitch: 20, roll: 0), at: 1)
+        sway.advance(toward: WheelTilt(pitch: 20, roll: 0), at: 0.5)
+        #expect(sway.tilt == .zero)
+    }
+}
+
+struct SwayModeTests {
+    @Test func 待機中と回転中は揺らし結果表示中は正面へ戻す() {
+        #expect(SwayMode.mode(showingResult: false, reduceMotion: false) == .follow)
+        #expect(SwayMode.mode(showingResult: true, reduceMotion: false) == .settle)
+    }
+
+    @Test func 視差効果を減らす設定では揺らさない() {
+        #expect(SwayMode.mode(showingResult: false, reduceMotion: true) == .still)
+        #expect(SwayMode.mode(showingResult: true, reduceMotion: true) == .still)
+    }
+
+    @Test func 購読するのは揺らす場面と戻している途中だけ() {
+        #expect(SwayMode.follow.subscribes(active: true, atRest: true))
+        #expect(SwayMode.settle.subscribes(active: true, atRest: false))
+        #expect(!SwayMode.settle.subscribes(active: true, atRest: true))
+        #expect(!SwayMode.still.subscribes(active: true, atRest: false))
+    }
+
+    @Test func 画面に出ていないか前面でなければ購読しない() {
+        for mode in [SwayMode.follow, .settle, .still] {
+            #expect(!mode.subscribes(active: false, atRest: false))
+        }
+    }
+}

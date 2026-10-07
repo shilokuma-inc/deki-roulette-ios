@@ -59,7 +59,7 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 
 盤面は 12 時を 0 度、時計回り。`SliceShape` は `clockwise: false` で画面上は時計回りになる（y 軸が下向きのため）。
 
-盤面のフリックでも始められる。ドラッグ中は盤面を指に追従させる。`RouletteWheelView` が `WheelDrag.rotationDelta` で
+盤面のフリックでも始められる。ドラッグ中は盤面を指に追従させる。`WheelDragArea`（2D の `RouletteWheelView` と 3D の `Wheel3DView` で共有）が `WheelDrag.rotationDelta` で
 指が中心のまわりを回った角度を `@State dragRotation` に足し、`rotationEffect(rotation + dragRotation)` で回す（ドラッグ中は
 `rotation` が変わらないのでスピンの曲線の `.animation` は掛からない）。指を離すと `dragRotation` を 0 に戻し、
 同じ更新で `RouletteScreen` が `model.rotate(by:)` で取り込んでからスピンを始める（見た目は離した角度から続き、止まる累積角・
@@ -67,7 +67,7 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 追従で針が境目を越えたら（`WheelDrag.boundaryCrossings`）`onBoundaryCross` で親に伝え、`model.crossDragBoundary(at:)` が
 `WheelDrag.FeedbackThrottle` で間引いて `dragBoundaryTick` を進め（触覚）、回転音を鳴らすかを返す（`sound.playClick()`）。
 結果の表示は回転角ではなく `spinCount` で出し直すので、指で動かしても結果は出し直さない。
-あわせて `RouletteWheelView` がドラッグ中の位置を `FlickSampleBuffer` に記録し、指を離す直前
+あわせて `WheelDragArea` がドラッグ中の位置を `FlickSampleBuffer` に記録し、指を離す直前
 `Config.flickSampleWindow` に中心のまわりを回った角度から `FlickSpin.angularVelocity` で角速度を出す（離した瞬間の
 `velocity` は揺れが大きく、同じフリックでも回らないことがあるので使わない）。それを
 `FlickSpin.spin` で周回数と向き（`SpinDirection`、角速度の符号）に写し、角速度そのものと一緒に
@@ -97,6 +97,39 @@ ON/OFF は `@AppStorage(Config.hapticsEnabledKey)`。設定の文言は「触覚
 （`scripts/make-click-sound.swift` で再生成）。`AVAudioSession` は `.ambient` で、消音スイッチに従い他アプリの
 音も止めない。`reducedMotion` では鳴らさない。指で盤面を動かしている間は、境目を越えたその場で `playClick()` で 1 回ずつ
 鳴らす（`reducedMotion` でも鳴らす）。ON/OFF は `@AppStorage(Config.soundEnabledKey)`。
+
+### 3D 表示の仕組み
+
+設定の「3D 表示」（`@AppStorage(Config.wheel3DEnabledKey)`、既定 OFF）が ON のとき、`RouletteScreen` は `RouletteWheelView` の代わりに
+`Wheel3DView` を出す（OFF のときの 2D は変えない。描画経路は二重になる）。SceneKit（`SCNView` を `UIViewRepresentable` で包む。
+iOS 17 のまま）で、厚みのある盤・外周の縁・中心のハブ・盤を裏の中心 1 点で支える支柱を描く（寸法は `Theme.Wheel3D`、メッシュは
+`WheelGeometry`）。スライスの塗りは 2D と同じ `Theme.sliceColor(at:count:)` で、表面は照明に依らない塗り（`.constant`）、側面・縁・
+支柱だけ陰影を付ける。ラベルは `WheelLabel` の省略・文字サイズで 1 枚の画像に焼いて表面に貼る。
+場面は盤面の枠より `Theme.Wheel3D.overscan` だけ広く描き（触れた操作は受けない）、傾いた盤や針が切れないようにする。
+
+回転は 2D と同じ `rotation` / `dragRotation` / `spinEasing` から決める。補間は SwiftUI に任せ（`Wheel3DSurface` の
+`animatableData` と `.animation(Theme.spinAnimation(easing:), value: rotation)`）、毎フレームの角度を盤のノードに写すだけなので、
+2D と同じ時刻に同じ角度で止まる。スピンの完了は今どおり `withAnimation … completion:` と `Config.spinFallback` で判定し、
+3D 側の描画の完了には依らない。ドラッグ追従とフリックは 2D と同じ `WheelDragArea` が盤面の枠（overscan を含まない正方形）で受け、
+角速度は画面平面上の指の動きのまま。
+
+針と結果の帯は盤と同じ面（`Wheel3DScene` の `tiltNode`）に乗せ、盤と一緒に傾ける（回転はしない）。帯は 2D と同じ
+`ResultBandLabel` を画像に焼いて貼るので、3D では `RouletteScreen` の `overlay(alignment: .top) { resultBand }` は出さない。
+停止時の強調は 2D と同じ定数で、他のスライスに `Theme.sliceDim` を重ねた板を置き、止まったスライスは 2D と同じ塗り・ラベル・
+縁取り・光彩（`StopGlow` を共有）を焼いた画像を側面付きの板に貼って縁の高さまで持ち上げ、`stopPulseScale` → `stopHoldScale` で
+押し出す（戻りは `CASpringAnimation(perceptualDuration:bounce:)` で 2D の `stopSettleAnimation` と同じばね）。針も同じ曲線で沈む。
+`accessibilityReduceMotion` では拡大・持ち上げ・針の跳ねを省く。
+
+盤は端末の姿勢で傾け、動かした勢いで支点まわりに揺らす。傾きの写像は `TiltMapping`（基準は `@AppStorage(Config.tiltReferenceKey)`
+の `TiltReference`。水平に置いた状態なら `DeviceGravity.flat`、持ち方なら取り直した重力。`Config.wheelMaxTilt` で抑える）、
+揺れは `WheelSway`（2 軸の `SpringAxis`。勢いは `SwayKick` で `userAcceleration` から求め、読み取りの経過時間の割合で足す）で、
+どれも `Core/` の純粋関数。購読は `WheelMotionModel`（`@MainActor`）が持ち、取得元は `MotionSource` で差し替えられる
+（実機は `DeviceMotionSource` の `CMMotionManager.deviceMotion`、Simulator とテストは `ManualMotionSource`）。
+揺らし方は `SwayMode` で、待機中・回転中は `follow`、結果表示中は `settle`（正面へばねで戻し、止まったら購読も止める）、
+`accessibilityReduceMotion` では `still`（購読せず正面）。購読するのは盤面が画面に出ていて `scenePhase == .active` の間だけ。
+持ち方の基準は盤面が画面に出たときとアプリに戻ったときに取り直す。`WheelMotionModel` は `Wheel3DView` が最初に画面に出たときに
+1 つだけ作る（`CMMotionManager` を作り直さない）。傾きと揺れは見た目だけで、止まる位置・結果・触覚・回転音の時刻には影響させない。
+3D の盤面も `accessibilityHidden` で、指定（`targetId`）は渡さない。見た目は `Wheel3DSceneTests` が `SCNRenderer` の画面外描画の画素で確かめる。
 
 ### 並べ替えの仕組み
 

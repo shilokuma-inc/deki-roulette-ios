@@ -121,7 +121,7 @@ enum Theme {
 
     // MARK: 停止の強調
 
-    // 止まった瞬間に針の下のスライスだけを短く押し出し、他のスライスを強く沈める。
+    // 止まった瞬間に針の下のスライスだけを短く押し出して少し大きいまま残し、他のスライスを強く沈める。
     // 止まったスライスには白系の縁取りと外側への光彩を付け、細いスライスでも見つけられるようにする。
     // 専用色は使わず、暗くするのは `onSlice` を重ねるだけ、縁取りと光彩は盤面と同じく外観に依らない白系にする。
 
@@ -136,13 +136,16 @@ enum Theme {
     static let stopGlow = Color(hex: 0xF5EFE6).opacity(0.8)
     /// 光彩の半径（基準直径での pt）。
     static let stopGlowRadius: CGFloat = 10
-    /// 止まったスライスを押し出す倍率。
-    static let stopPulseScale: CGFloat = 1.04
+    /// 止まった瞬間にスライスを押し出す倍率。戻りで `stopHoldScale` に収まる。
+    /// 縁取りを含めて外周の縁（基準直径で 16pt）の内側に収まる大きさに留める。
+    static let stopPulseScale: CGFloat = 1.10
+    /// 結果が出ている間、止まったスライスを前に出しておく倍率。
+    static let stopHoldScale: CGFloat = 1.07
     /// 停止の瞬間に針が沈む量（pt）。
     static let pointerBounceOffset: CGFloat = 4
     /// 押し出し・沈み込みの行き。
     static let stopPulseAnimation = Animation.easeOut(duration: 0.14)
-    /// 押し出し・沈み込みの戻り。少し弾ませる。
+    /// 押し出し・沈み込みの戻り。少し弾ませる。強調が解けてスライスが元の大きさに戻るときにも使う。
     static let stopSettleAnimation = Animation.spring(duration: 0.4, bounce: 0.35)
     /// 他のスライスが暗くなる／戻るときの変化。
     static let stopDimAnimation = Animation.easeOut(duration: 0.25)

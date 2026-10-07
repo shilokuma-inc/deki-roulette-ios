@@ -103,7 +103,10 @@ struct RouletteScreen: View {
             Wheel3DView(
                 items: model.items,
                 rotation: model.rotation,
+                // 2D と同じく、結果が出ている間だけ止まったスライスを強調する
+                highlightedIndex: model.outcome?.index,
                 spinEasing: model.spinEasing,
+                glowStyle: glowStyle,
                 result: wheel3DResult
             )
         } else {

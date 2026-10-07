@@ -168,6 +168,71 @@ struct Wheel3DSceneTests {
         #expect(inkCount(around: own, pixels: pixels) == 0)
     }
 
+    // MARK: 停止の強調
+
+    private func makeStoppedScene(index: Int, glowStyle: GlowStyle = .white) -> Wheel3DScene {
+        let scene = makeScene(count: 4, rotation: 0)
+        scene.highlight(Wheel3DHighlight(index: index, glowStyle: glowStyle), reduceMotion: true)
+        return scene
+    }
+
+    private func distance(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> Double {
+        let d = a - b
+        return max(abs(d.x), abs(d.y), abs(d.z))
+    }
+
+    @Test func 止まっていないスライスは沈み止まったスライスは塗りの色のまま() throws {
+        let pixels = try render(makeStoppedScene(index: 2))
+        let stopped = pixels.color(at: location(angle: 225, fraction: 0.6, pixels: pixels))
+        #expect(isClose(stopped, srgb(Theme.sliceColor(at: 2, count: 4))), "\(stopped)")
+        let ink = srgb(Theme.onSlice)
+        for index in [0, 1, 3] {
+            let original = srgb(Theme.sliceColor(at: index, count: 4))
+            let color = pixels.color(at: location(angle: 45 + 90 * Double(index), fraction: 0.6, pixels: pixels))
+            #expect(!isClose(color, original), "slice \(index): \(color)")
+            // `onSlice` を重ねた分だけ近づく
+            #expect(distance(color, ink) < distance(original, ink), "slice \(index): \(color)")
+        }
+    }
+
+    @Test func 止まったスライスに縁取りが付く() throws {
+        let pixels = try render(makeStoppedScene(index: 2))
+        // 止まったスライスの始まりの境目（180 度）の上
+        let color = pixels.color(at: location(angle: 180, fraction: 0.6, pixels: pixels))
+        #expect(isClose(color, srgb(Theme.stopOutline)), "\(color)")
+    }
+
+    @Test func 止まったスライスの外側に光彩が出る() throws {
+        let pixels = try render(makeStoppedScene(index: 2))
+        // 境目から隣のスライスへ 5pt 入った位置は、沈めた隣の色より明るい（白系の光彩）
+        let radius = (Double(size) / 2 - 16 * Double(size) / WheelLabel.referenceDiameter) * 0.6
+        let near = pixels.color(at: location(angle: 180 - 5 / radius * 180 / .pi, fraction: 0.6, pixels: pixels))
+        let plain = pixels.color(at: location(angle: 135, fraction: 0.6, pixels: pixels))
+        #expect(near.x + near.y + near.z > plain.x + plain.y + plain.z + 0.1, "near: \(near) plain: \(plain)")
+    }
+
+    @Test func 強調を解くと元の色に戻る() throws {
+        let scene = makeStoppedScene(index: 2)
+        scene.highlight(nil, reduceMotion: true)
+        let pixels = try render(scene)
+        for index in 0..<4 {
+            let color = pixels.color(at: location(angle: 45 + 90 * Double(index), fraction: 0.6, pixels: pixels))
+            #expect(isClose(color, srgb(Theme.sliceColor(at: index, count: 4))), "slice \(index): \(color)")
+        }
+        let edge = pixels.color(at: location(angle: 180, fraction: 0.6, pixels: pixels))
+        #expect(!isClose(edge, srgb(Theme.stopOutline)), "\(edge)")
+    }
+
+    @Test func 盤を組み直しても強調を出し直す() throws {
+        let scene = makeStoppedScene(index: 2)
+        scene.update(labels: Array(repeating: "", count: 4), diameter: size + 1)
+        scene.update(labels: Array(repeating: "", count: 4), diameter: size)
+        scene.highlight(Wheel3DHighlight(index: 2, glowStyle: .white), reduceMotion: true)
+        let pixels = try render(scene)
+        let color = pixels.color(at: location(angle: 45, fraction: 0.6, pixels: pixels))
+        #expect(!isClose(color, srgb(Theme.sliceColor(at: 0, count: 4))), "\(color)")
+    }
+
     // MARK: 針と結果の帯
 
     @Test func 針は12時に塗りの色のまま出る() throws {

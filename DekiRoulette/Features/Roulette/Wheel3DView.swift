@@ -8,10 +8,15 @@ import SwiftUI
 /// 針と結果の帯（`result`）は盤と同じ面に乗せ、盤と一緒に傾ける（回転はしない）。盤が傾いても針が指すスライスと
 /// 止まったスライスが一致して見えるようにするため、2D のように画面に固定した層には置かない。
 /// 傾いた盤や針がはみ出しても切れないよう、場面は盤面の枠より `Theme.Wheel3D.overscan` だけ広く描く（触れた操作は受けない）。
+/// `highlightedIndex` を渡すと、2D と同じくそのスライスを止まった位置として強調する（他を暗くし、縁取りと光彩を付け、
+/// 押し出して針を跳ねさせ、結果が出ている間は前に出したままにする）。
 struct Wheel3DView: View {
     let items: [Item]
     let rotation: Double
+    var highlightedIndex: Int? = nil
     var spinEasing = Config.spinEasing
+    /// 止まったスライスの光彩の色（設定の「ルーレットの詳細設定」）。
+    var glowStyle = GlowStyle.default
     /// 結果の帯。結果が出ている間だけ渡す。
     var result: Wheel3DResult? = nil
 
@@ -24,6 +29,7 @@ struct Wheel3DView: View {
             let canvas = side * (1 + 2 * Theme.Wheel3D.overscan)
             Wheel3DSurface(
                 items: items, rotation: rotation, diameter: side, displayScale: displayScale,
+                highlight: highlightedIndex.map { Wheel3DHighlight(index: $0, glowStyle: glowStyle) },
                 result: result, reduceMotion: reduceMotion
             )
             .frame(width: canvas, height: canvas)
@@ -46,12 +52,19 @@ struct Wheel3DResult: Equatable {
     let accent: Color
 }
 
+/// 止まったスライスの強調。
+struct Wheel3DHighlight: Equatable {
+    let index: Int
+    let glowStyle: GlowStyle
+}
+
 /// 補間中の回転角を毎フレーム受け取る層。SwiftUI が `animatableData` を補間して `body` を描き直す。
 private struct Wheel3DSurface: View, Animatable {
     let items: [Item]
     var rotation: Double
     let diameter: CGFloat
     let displayScale: CGFloat
+    let highlight: Wheel3DHighlight?
     let result: Wheel3DResult?
     let reduceMotion: Bool
 
@@ -63,7 +76,7 @@ private struct Wheel3DSurface: View, Animatable {
     var body: some View {
         Wheel3DSceneView(
             items: items, rotation: rotation, diameter: diameter, displayScale: displayScale,
-            result: result, reduceMotion: reduceMotion
+            highlight: highlight, result: result, reduceMotion: reduceMotion
         )
     }
 }
@@ -73,6 +86,7 @@ private struct Wheel3DSceneView: UIViewRepresentable {
     let rotation: Double
     let diameter: CGFloat
     let displayScale: CGFloat
+    let highlight: Wheel3DHighlight?
     let result: Wheel3DResult?
     let reduceMotion: Bool
 
@@ -95,6 +109,7 @@ private struct Wheel3DSceneView: UIViewRepresentable {
     func updateUIView(_ view: SCNView, context: Context) {
         context.coordinator.update(labels: items.map(\.label), diameter: diameter, displayScale: displayScale)
         context.coordinator.spin(to: rotation)
+        context.coordinator.highlight(highlight, reduceMotion: reduceMotion)
         context.coordinator.show(result: result, reduceMotion: reduceMotion)
     }
 }
@@ -112,6 +127,10 @@ final class Wheel3DScene {
     private var shownResult: Wheel3DResult?
     /// 盤を回すノード。スライス・縁・ハブを載せる。
     private let spinNode = SCNNode()
+    /// 止まっていないスライスに重ねて暗くする層と、前に出した止まったスライス（どちらも `spinNode` に載せる）。
+    private var dimNode: SCNNode?
+    private var stoppedNode: SCNNode?
+    private var shownHighlight: Wheel3DHighlight?
     private let postNode = SCNNode()
 
     private struct Shape: Equatable {
@@ -190,7 +209,48 @@ final class Wheel3DScene {
         SCNTransaction.commit()
     }
 
+    /// 止まったスライスを強調する・解く。2D の `RouletteWheelView` と同じ定数で、他のスライスを `Theme.sliceDim` で沈め、
+    /// 止まったスライスを縁取りと光彩ごと `stopPulseScale` で押し出して `stopHoldScale` に収め、針を跳ねさせる。
+    /// 止まったスライスは縁の高さまで持ち上げ、側面の付いた板として前に出す（隣に隠れず、傾けても浮いて見える）。
+    /// 動きを減らす設定では大きさも高さも変えず、暗くする・縁取り・光彩だけを即座に出す。
+    /// 大きさが変わって盤を組み直したときは、動かさずに出し直す。
+    func highlight(_ highlight: Wheel3DHighlight?, reduceMotion: Bool) {
+        let changed = highlight != shownHighlight
+        guard changed || (highlight != nil && stoppedNode == nil) else { return }
+        shownHighlight = highlight
+        let animate = changed && !reduceMotion
+        guard let highlight, let shape = built, highlight.index < shape.count else {
+            clearHighlight(animated: animate)
+            return
+        }
+        removeHighlightNodes()
+        let dim = makeDim(except: highlight.index, shape: shape)
+        let stopped = makeStopped(highlight, shape: shape, lifted: !reduceMotion)
+        spinNode.addChildNode(dim)
+        spinNode.addChildNode(stopped)
+        dimNode = dim
+        stoppedNode = stopped
+        if !reduceMotion {
+            stopped.scale = Self.planeScale(Theme.stopHoldScale)
+        }
+        guard animate else { return }
+        // 縁取り・光彩は止まったスライスの塗りとラベルと 1 枚に焼いてあるので、押し出しに任せて薄めない
+        dim.opacity = 0
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = Self.dimDuration
+        SCNTransaction.animationTimingFunction = CAMediaTimingFunction(name: .easeOut)
+        dim.opacity = 1
+        SCNTransaction.commit()
+        Self.pulse(stopped, keyPath: "scale", from: Self.planeScale(1), peak: Self.planeScale(Theme.stopPulseScale),
+                   rest: Self.planeScale(Theme.stopHoldScale))
+        // 針は沈んでから戻る（y は上向きなので、2D で下へ沈むのは -）
+        Self.pulse(pointerNode, keyPath: "position", from: SCNVector3Zero,
+                   peak: SCNVector3(0, -Float(Theme.pointerBounceOffset), 0), rest: SCNVector3Zero)
+    }
+
     private func build(_ shape: Shape) {
+        // 強調は組み直したあとに出し直す（`highlight` が `stoppedNode` の無いのを見て作る）
+        removeHighlightNodes()
         spinNode.childNodes.forEach { $0.removeFromParentNode() }
         postNode.childNodes.forEach { $0.removeFromParentNode() }
         pointerNode.childNodes.forEach { $0.removeFromParentNode() }
@@ -233,6 +293,130 @@ final class Wheel3DScene {
         addHub(scale: scale)
         addPost(thickness: thickness, scale: scale)
         addPointer(diameter: diameter, scale: scale)
+    }
+
+    // MARK: 停止の強調
+
+    /// 2D の `Theme.stopDimAnimation`（easeOut 0.25 秒）。
+    private static let dimDuration = 0.25
+    /// 2D の `Theme.stopPulseAnimation`（easeOut 0.14 秒）。
+    private static let pulseDuration = 0.14
+
+    private static func planeScale(_ value: CGFloat) -> SCNVector3 {
+        SCNVector3(Float(value), Float(value), 1)
+    }
+
+    /// 2D の押し出し（`stopPulseAnimation` で `peak` へ、`stopSettleAnimation` の弾むばねで `rest` へ）を SceneKit で再現する。
+    /// 値はすぐ `rest` にし、見た目だけをアニメーションで動かす。
+    private static func pulse(_ node: SCNNode, keyPath: String, from: SCNVector3, peak: SCNVector3, rest: SCNVector3) {
+        node.setValue(NSValue(scnVector3: rest), forKeyPath: keyPath)
+        let out = CABasicAnimation(keyPath: keyPath)
+        out.fromValue = NSValue(scnVector3: from)
+        out.toValue = NSValue(scnVector3: peak)
+        out.duration = pulseDuration
+        out.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        // SwiftUI の `.spring(duration: 0.4, bounce: 0.35)` と同じばね
+        let settle = CASpringAnimation(perceptualDuration: 0.4, bounce: 0.35)
+        settle.keyPath = keyPath
+        settle.fromValue = NSValue(scnVector3: peak)
+        settle.toValue = NSValue(scnVector3: rest)
+        settle.beginTime = pulseDuration
+        settle.duration = settle.settlingDuration
+        let group = CAAnimationGroup()
+        group.animations = [out, settle]
+        group.duration = settle.beginTime + settle.duration
+        group.isRemovedOnCompletion = true
+        node.addAnimation(SCNAnimation(caAnimation: group), forKey: "stopPulse")
+    }
+
+    private func removeHighlightNodes() {
+        dimNode?.removeFromParentNode()
+        stoppedNode?.removeFromParentNode()
+        dimNode = nil
+        stoppedNode = nil
+    }
+
+    /// 強調を解く。2D と同じく暗さと縁取り・光彩を戻しながら、止まったスライスを元の大きさへ戻して外す。
+    private func clearHighlight(animated: Bool) {
+        guard animated, let dim = dimNode, let stopped = stoppedNode else {
+            removeHighlightNodes()
+            return
+        }
+        dimNode = nil
+        stoppedNode = nil
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = Self.dimDuration
+        SCNTransaction.animationTimingFunction = CAMediaTimingFunction(name: .easeOut)
+        SCNTransaction.completionBlock = {
+            dim.removeFromParentNode()
+            stopped.removeFromParentNode()
+        }
+        dim.opacity = 0
+        stopped.opacity = 0
+        stopped.scale = Self.planeScale(1)
+        SCNTransaction.commit()
+    }
+
+    /// 止まっていないスライスに `Theme.sliceDim` を重ねた 1 枚の板。ラベルと境目の線より手前に置き、2D と同じく一緒に沈める。
+    private func makeDim(except index: Int, shape: Shape) -> SCNNode {
+        let diameter = Double(shape.diameter)
+        let content = DimmedSlices(count: shape.count, except: index, diameter: diameter)
+        let node = Self.imagePlane(content, side: diameter, displayScale: shape.displayScale)
+        node.position.z = 0.4
+        return node
+    }
+
+    /// 前に出した止まったスライス。側面の付いた板（塗りの色）の上に、2D と同じ塗り・ラベル・縁取り・光彩を焼いた画像を貼る。
+    /// 盤の中心を原点に置くので、`scale` は 2D の `scaleEffect` と同じく盤の中心から広がる。
+    private func makeStopped(_ highlight: Wheel3DHighlight, shape: Shape, lifted: Bool) -> SCNNode {
+        let diameter = Double(shape.diameter)
+        let scale = diameter / WheelLabel.referenceDiameter
+        let radius = diameter / 2 - 16 * scale
+        let count = shape.count
+        // 縁より少し手前（ハブよりは奥）まで持ち上げる。動きを減らす設定では暗くする層のすぐ上に置くだけにする
+        let lift = lifted ? Double(Theme.Wheel3D.rimLift) * scale + 0.5 : 0.5
+        let group = SCNNode()
+        group.position.z = Float(lift)
+
+        let color = Theme.sliceColor(at: highlight.index, count: count)
+        let sliceAngle = 360 / Double(max(count, 1))
+        let start = count == 1 ? 0 : Double(highlight.index) * sliceAngle
+        let mesh = WheelGeometry.sliceMesh(start: start, end: start + sliceAngle, radius: radius, thickness: lift)
+        let vector = { (v: SIMD3<Double>) in SCNVector3(Float(v.x), Float(v.y), Float(v.z)) }
+        let geometry = SCNGeometry(
+            sources: [
+                SCNGeometrySource(vertices: mesh.vertices.map(vector)),
+                SCNGeometrySource(normals: mesh.normals.map(vector)),
+            ],
+            elements: [
+                SCNGeometryElement(indices: mesh.top, primitiveType: .triangles),
+                SCNGeometryElement(indices: mesh.side, primitiveType: .triangles),
+            ]
+        )
+        geometry.materials = [Self.material(color, lit: false), Self.material(color, lit: true)]
+        group.addChildNode(SCNNode(geometry: geometry))
+
+        // 光彩が切れないよう、焼く範囲を光彩の分だけ広げる
+        let margin = Double(Theme.stopGlowRadius) * scale * 3
+        let content = StoppedSlice(
+            labels: shape.labels, index: highlight.index, diameter: diameter, glowStyle: highlight.glowStyle
+        )
+        .padding(margin)
+        let face = Self.imagePlane(content, side: diameter + margin * 2, displayScale: shape.displayScale)
+        face.position.z = 0.1
+        group.addChildNode(face)
+        return group
+    }
+
+    /// SwiftUI のビューを画像に焼き、盤の平面に置く正方形の板にする（中心が盤の中心）。
+    private static func imagePlane(_ content: some View, side: Double, displayScale: CGFloat) -> SCNNode {
+        let renderer = ImageRenderer(content: content.frame(width: side, height: side).fontDesign(.rounded))
+        renderer.scale = displayScale
+        let plane = SCNPlane(width: side, height: side)
+        let face = material(.white, lit: false)
+        face.diffuse.contents = renderer.uiImage
+        plane.materials = [face]
+        return SCNNode(geometry: plane)
     }
 
     /// 帯と針を置く奥行き（盤の表面からの高さ）。縁・ハブより手前に出し、針を帯より手前にする。
@@ -404,6 +588,85 @@ final class Wheel3DScene {
     }
 }
 
+/// 止まっていないスライスに重ねる暗い層（2D の `Theme.sliceDim` の重ね）。盤面の枠と同じ大きさ。
+private struct DimmedSlices: View {
+    let count: Int
+    let except: Int
+    let diameter: Double
+
+    var body: some View {
+        let scale = diameter / WheelLabel.referenceDiameter
+        let radius = diameter / 2 - 16 * scale
+        let sliceAngle = 360 / Double(max(count, 1))
+        ZStack {
+            ForEach(0..<count, id: \.self) { index in
+                if index != except {
+                    SliceShape(
+                        startAngle: Double(index) * sliceAngle, endAngle: Double(index + 1) * sliceAngle, radius: radius
+                    )
+                    .fill(Theme.sliceDim)
+                }
+            }
+        }
+    }
+}
+
+/// 止まったスライスの表面。2D の `RouletteWheelView` の強調したスライスと同じ塗り・境目の線・ラベル・縁取り・光彩
+/// （`StopGlow`）を、盤面の枠と同じ大きさで描く。
+private struct StoppedSlice: View {
+    let labels: [String]
+    let index: Int
+    let diameter: Double
+    let glowStyle: GlowStyle
+
+    var body: some View {
+        let side = CGFloat(diameter)
+        let scale = side / CGFloat(WheelLabel.referenceDiameter)
+        let radius = side / 2 - 16 * scale
+        let count = labels.count
+        let color = Theme.sliceColor(at: index, count: count)
+        let limit = WheelLabel.limit(count: count, diameter: diameter)
+        let font = Font.system(size: WheelLabel.fontSize(count: count, diameter: diameter), weight: .bold)
+        ZStack {
+            if count == 1 {
+                Circle().fill(color)
+                    .overlay(Circle().strokeBorder(Theme.stopOutline, lineWidth: Theme.stopOutlineWidth * scale))
+                    .modifier(StopGlow(
+                        shape: Circle(), style: glowStyle, sliceColor: color, shown: true,
+                        radius: Theme.stopGlowRadius * scale
+                    ))
+                    .frame(width: radius * 2, height: radius * 2)
+                Text(WheelLabel.truncate(labels[0], limit: limit))
+                    .font(font)
+                    .foregroundStyle(Theme.onSlice)
+            } else {
+                let sliceAngle = 360 / Double(count)
+                let start = Double(index) * sliceAngle
+                let mid = start + sliceAngle / 2
+                let slice = SliceShape(startAngle: start, endAngle: start + sliceAngle, radius: radius)
+                let point = WheelGeometry.point(angle: mid, radius: Double(radius) * WheelLabel.radiusFraction)
+                ZStack {
+                    slice.fill(color)
+                        .overlay(slice.stroke(Theme.onSlice, lineWidth: 2 * scale))
+                    Text(WheelLabel.truncate(labels[index], limit: limit))
+                        .font(font)
+                        .foregroundStyle(Theme.onSlice)
+                        .fixedSize()
+                        .rotationEffect(.degrees(WheelLabel.rotation(midAngle: mid)))
+                        .position(x: side / 2 + CGFloat(point.x), y: side / 2 - CGFloat(point.y))
+                }
+                .overlay(
+                    slice.stroke(Theme.stopOutline, style: StrokeStyle(lineWidth: Theme.stopOutlineWidth * scale, lineJoin: .round))
+                )
+                .modifier(StopGlow(
+                    shape: slice, style: glowStyle, sliceColor: color, shown: true, radius: Theme.stopGlowRadius * scale
+                ))
+            }
+        }
+        .frame(width: side, height: side)
+    }
+}
+
 /// 盤面のラベルを焼いた画像。盤と同じ大きさの正方形で、2D の `RouletteWheelView` と同じ位置・向きに置く
 /// （画像の上が 12 時。y は下向きなので、2D の座標の取り方がそのまま使える）。
 @MainActor
@@ -451,6 +714,14 @@ private enum WheelLabelImage {
     Wheel3DView(items: ItemLabel.makeItems(["ラーメン", "カレー", "寿司", "焼肉"]), rotation: 0)
         .padding(40)
         .background(Theme.ink900)
+}
+
+#Preview("Stopped") {
+    Wheel3DView(
+        items: ItemLabel.makeItems(["ラーメン", "カレー", "寿司", "焼肉"]), rotation: 45, highlightedIndex: 3
+    )
+    .padding(40)
+    .background(Theme.ink900)
 }
 
 #Preview("12 items") {

@@ -283,8 +283,8 @@ final class WheelDragSession {
 
 /// 止まったスライスの外側への光彩。白系と止まったスライスの色は影でにじませる。
 /// 虹色は影にできないので、スライスの輪郭を角度のグラデーションで太くなぞってぼかし、スライスの後ろに敷く
-/// （スライスの塗りは不透明なので、外側にはみ出した分だけが見える）。
-private struct StopGlow<S: Shape>: ViewModifier {
+/// （スライスの塗りは不透明なので、外側にはみ出した分だけが見える）。3D の盤面も同じ見た目を画像に焼いて使う（`Wheel3DView`）。
+struct StopGlow<S: Shape>: ViewModifier {
     let shape: S
     let style: GlowStyle
     let sliceColor: Color

@@ -121,21 +121,54 @@ enum Theme {
 
     // MARK: 停止の強調
 
-    // 止まった瞬間に針の下のスライスだけを短く押し出し、他のスライスを少し沈める。
-    // 専用色は使わず、`onSlice` を薄く重ねて暗くするだけにする。
+    // 止まった瞬間に針の下のスライスだけを短く押し出して少し大きいまま残し、他のスライスを強く沈める。
+    // 止まったスライスには白系の縁取りと外側への光彩を付け、細いスライスでも見つけられるようにする。
+    // 専用色は使わず、暗くするのは `onSlice` を重ねるだけ、縁取りと光彩は盤面と同じく外観に依らない白系にする。
 
-    /// 止まっていないスライスに重ねて暗くする色。ラベルが `onSlice` で読める範囲に留める。
-    static let sliceDim = onSlice.opacity(0.16)
-    /// 止まったスライスを押し出す倍率。
-    static let stopPulseScale: CGFloat = 1.04
+    /// 止まっていないスライスに重ねて暗くする色。沈めたラベルは読ませる対象ではないが、
+    /// どの項目かは見分けられる範囲に留める（`ThemeContrastTests`）。
+    static let sliceDim = onSlice.opacity(0.5)
+    /// 止まったスライスの縁取り。沈めた隣のスライスに対して 3:1 以上の明るさにする。
+    static let stopOutline = Color(hex: 0xF5EFE6)
+    /// 縁取りの太さ（基準直径 `WheelLabel.referenceDiameter` での pt。盤面の大きさに比例させる）。
+    static let stopOutlineWidth: CGFloat = 3
+    /// 光彩の不透明度。白系・止まったスライスの色のどちらにも使う。
+    static let stopGlowOpacity = 0.8
+    /// 止まったスライスから外側へにじませる光彩（白系、`GlowStyle.white`）。
+    static let stopGlow = Color(hex: 0xF5EFE6).opacity(stopGlowOpacity)
+    /// 虹色の光彩（`GlowStyle.rainbow`）。新しい色は足さず、色相順に並んだスライスの 10 色を盤面の中心のまわりに一周させる。
+    /// 盤面の塗りと同じ色なので `gold` / `flare` の用途とは重ならず、文字にも使わない。
+    static let stopGlowRainbow = AngularGradient(
+        colors: sliceColors + [sliceColors[0]], center: .center, startAngle: .degrees(-90), endAngle: .degrees(270)
+    )
+    /// 光彩の半径（基準直径での pt）。
+    static let stopGlowRadius: CGFloat = 10
+    /// 止まった瞬間にスライスを押し出す倍率。戻りで `stopHoldScale` に収まる。
+    /// 縁取りを含めて外周の縁（基準直径で 16pt）の内側に収まる大きさに留める。
+    static let stopPulseScale: CGFloat = 1.10
+    /// 結果が出ている間、止まったスライスを前に出しておく倍率。
+    static let stopHoldScale: CGFloat = 1.07
     /// 停止の瞬間に針が沈む量（pt）。
     static let pointerBounceOffset: CGFloat = 4
     /// 押し出し・沈み込みの行き。
     static let stopPulseAnimation = Animation.easeOut(duration: 0.14)
-    /// 押し出し・沈み込みの戻り。少し弾ませる。
+    /// 押し出し・沈み込みの戻り。少し弾ませる。強調が解けてスライスが元の大きさに戻るときにも使う。
     static let stopSettleAnimation = Animation.spring(duration: 0.4, bounce: 0.35)
     /// 他のスライスが暗くなる／戻るときの変化。
     static let stopDimAnimation = Animation.easeOut(duration: 0.25)
+
+    // MARK: 結果の帯
+
+    // 結果が出ている間、針のすぐ下に重ねて結果のラベルを全文で出す帯（寸法は `ResultBand`）。
+    // 盤面に重ねるので外観に依らず固定し、白系の地に盤面と同じ暗い文字で載せる。枠は止まったスライスの塗り
+    // （`sliceColor(at:count:)`）にして、どのスライスの結果かを帯からも読み取れるようにする。
+
+    /// 帯の地。
+    static let resultBandFill = Color(hex: 0xF5EFE6)
+    /// 帯の文字。
+    static let resultBandInk = onSlice
+    /// 帯の影。止まったスライスと沈めた盤面から浮かせる。
+    static let resultBandShadow = pointerShadow
 
     /// 削除を元に戻すトーストの出入り。
     static let undoToastAnimation = Animation.easeOut(duration: 0.2)

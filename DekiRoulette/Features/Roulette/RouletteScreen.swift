@@ -3,9 +3,9 @@ import SwiftUI
 struct RouletteScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var sizeClass
-    @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
     @AppStorage(Config.soundEnabledKey) private var soundEnabled = true
+    @AppStorage(Config.glowStyleKey) private var glowStyle = GlowStyle.default
     let model: RouletteModel
     @State private var sound = SpinSoundPlayer()
 
@@ -74,14 +74,13 @@ struct RouletteScreen: View {
                 highlightedIndex: model.outcome?.index,
                 interactive: !model.spinning,
                 spinEasing: model.spinEasing,
+                glowStyle: glowStyle,
                 onBoundaryCross: dragCrossedBoundary,
                 onRelease: release
             )
+            // 帯は回転しない層に置く（盤面の `rotationEffect` の外側）。盤面のフリックを妨げないよう触れられなくする
+            .overlay(alignment: .top) { resultBand }
             .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
-
-            // 結果の有無で下のボタンが動かないよう高さを固定する。大きい文字では枠からはみ出るので最小高さだけ残す
-            resultStatus
-                .frame(minHeight: 56, maxHeight: TypeLayout.growsFixedAreas(for: typeSize) ? nil : 56)
 
             PrimaryActionButton(
                 title: model.spinning ? L10n.spinning : L10n.spin,
@@ -103,24 +102,37 @@ struct RouletteScreen: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// 針のすぐ下に重ねる結果の帯。盤面の下に結果の領域は持たず、結果のラベルはここで全文を出す（盤面のラベルは省略される）。
+    /// 出し直しは `spinCount` 基準で、指で盤面を動かしても出し直さない。
+    /// 盤面と同じく装飾扱いで読み上げない（結果は Announcement で伝える）。
     @ViewBuilder
-    private var resultStatus: some View {
-        if let outcome = model.outcome {
-            // 止まったスライスと同じ色で出す。項目を変えると `outcome` は消えるので、件数はスピン開始時と同じ
-            let color = Theme.sliceAccent(at: outcome.index, count: model.items.count)
-            Text(outcome.label)
-                .font(.title3.weight(.black))
-                .foregroundStyle(color)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
-                .background(color.opacity(0.1), in: .rect(cornerRadius: 16))
-                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(color.opacity(0.6), lineWidth: 1))
-                .revealOnAppear(reducedMotion: reduceMotion)
-                .id(outcome.label + "\(model.spinCount)")
-        } else {
-            Text(model.spinning ? L10n.spinning : L10n.resultPlaceholder)
-                .font(.caption)
-                .foregroundStyle(Theme.muted)
+    private var resultBand: some View {
+        if let outcome = model.outcome, !model.spinning {
+            GeometryReader { proxy in
+                let diameter = Double(min(proxy.size.width, proxy.size.height))
+                let scale = diameter / WheelLabel.referenceDiameter
+                Text(outcome.label)
+                    .font(.system(size: ResultBand.fontSize(diameter: diameter), weight: .black))
+                    .foregroundStyle(Theme.resultBandInk)
+                    .lineLimit(1)
+                    .minimumScaleFactor(ResultBand.minimumScaleFactor)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 14 * scale)
+                    .padding(.vertical, 5 * scale)
+                    .background(Theme.resultBandFill, in: .capsule)
+                    // 項目を変えると `outcome` は消えるので、件数はスピン開始時と同じ
+                    .overlay(
+                        Capsule().strokeBorder(Theme.sliceColor(at: outcome.index, count: model.items.count), lineWidth: 2 * scale)
+                    )
+                    .shadow(color: Theme.resultBandShadow, radius: 4 * scale, y: 2 * scale)
+                    .frame(maxWidth: ResultBand.maxWidth(diameter: diameter))
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, ResultBand.top(diameter: diameter, pointerBounce: Theme.pointerBounceOffset))
+                    .revealOnAppear(reducedMotion: reduceMotion)
+                    .id(outcome.label + "\(model.spinCount)")
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
 

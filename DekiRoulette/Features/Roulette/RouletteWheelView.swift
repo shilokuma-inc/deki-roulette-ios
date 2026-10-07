@@ -3,8 +3,9 @@ import SwiftUI
 /// 盤面の描画。回転は親が `rotation` を書き換え、このビューは `rotationEffect` で受ける（補間の曲線はこのビューが保証する）。
 /// 角度は 12 時を 0 度として時計回りに数える。針は 12 時に固定。
 ///
-/// `highlightedIndex` を渡すと、そのスライスを止まった位置として強調する（他を暗くし、渡された瞬間に
-/// 短く押し出して針を跳ねさせる）。nil に戻すと強調も解ける。
+/// `highlightedIndex` を渡すと、そのスライスを止まった位置として強調する（他を強く暗くし、止まったスライスに
+/// 縁取りと光彩を付け、渡された瞬間に短く押し出して針を跳ねさせ、そのあとも少し大きいまま前に出しておく）。
+/// nil に戻すと強調も解ける。
 /// ドラッグ中は盤面を指に追従させ（`WheelDrag`）、指を離したら、追従で回した角度と、離す直前の動きから出した
 /// 角速度（度/秒、時計回りが正）を `onRelease` に伝える。指を離さずにジェスチャが取り消されたときは角速度を nil で伝える。
 /// 追従した角度は親が `rotation` に取り込むまでこのビューが持つ。
@@ -17,6 +18,8 @@ struct RouletteWheelView: View {
     var highlightedIndex: Int? = nil
     var interactive = true
     var spinEasing = Config.spinEasing
+    /// 止まったスライスの光彩の色（設定の「ルーレットの詳細設定」）。
+    var glowStyle = GlowStyle.default
     var onBoundaryCross: ((_ time: TimeInterval) -> Void)? = nil
     var onRelease: ((_ angularVelocity: Double?, _ dragRotation: Double) -> Void)? = nil
 
@@ -171,7 +174,18 @@ struct RouletteWheelView: View {
             if count == 0 {
                 Circle().fill(Theme.wheelRim).frame(width: radius * 2, height: radius * 2)
             } else if count == 1 {
-                Circle().fill(Theme.sliceColor(at: 0, count: count)).frame(width: radius * 2, height: radius * 2)
+                let highlighted = effectiveHighlight == 0
+                Circle().fill(Theme.sliceColor(at: 0, count: count))
+                    .overlay(
+                        Circle().strokeBorder(Theme.stopOutline, lineWidth: Theme.stopOutlineWidth * scale)
+                            .opacity(highlighted ? 1 : 0)
+                    )
+                    .modifier(StopGlow(
+                        shape: Circle(), style: glowStyle, sliceColor: Theme.sliceColor(at: 0, count: count),
+                        shown: highlighted, radius: Theme.stopGlowRadius * scale
+                    ))
+                    .animation(reduceMotion ? nil : Theme.stopDimAnimation, value: highlighted)
+                    .frame(width: radius * 2, height: radius * 2)
                 Text(WheelLabel.truncate(items[0].label, limit: maxLabelLength))
                     .font(.system(size: fontSize, weight: .bold))
                     .foregroundStyle(Self.ink)
@@ -206,9 +220,23 @@ struct RouletteWheelView: View {
                             .fill(Theme.sliceDim)
                             .opacity(dimmed ? 1 : 0)
                     )
+                    // 止まったスライスは縁取りと外側への光彩で浮かせる（前に出すので光彩は沈めた隣に重なる）
+                    .overlay(
+                        SliceShape(startAngle: start, endAngle: end, radius: radius)
+                            .stroke(Theme.stopOutline, style: StrokeStyle(lineWidth: Theme.stopOutlineWidth * scale, lineJoin: .round))
+                            .opacity(highlighted ? 1 : 0)
+                    )
+                    .modifier(StopGlow(
+                        shape: SliceShape(startAngle: start, endAngle: end, radius: radius), style: glowStyle,
+                        sliceColor: Theme.sliceColor(at: index, count: count), shown: highlighted,
+                        radius: Theme.stopGlowRadius * scale
+                    ))
                     .animation(reduceMotion ? nil : Theme.stopDimAnimation, value: dimmed)
-                    // 押し出したスライスが隣に隠れないよう、強調中だけ前に出す
-                    .scaleEffect(highlighted && pulsing ? Theme.stopPulseScale : 1)
+                    .animation(reduceMotion ? nil : Theme.stopDimAnimation, value: highlighted)
+                    // 止まった瞬間に押し出し、結果が出ている間は少し大きいまま残す。隣に隠れないよう強調中だけ前に出す。
+                    // 強調が解けたら（結果が消えた・指で動かした）弾ませて元の大きさに戻す
+                    .scaleEffect(sliceScale(highlighted: highlighted))
+                    .animation(reduceMotion ? nil : Theme.stopSettleAnimation, value: highlighted)
                     .zIndex(highlighted ? 1 : 0)
                 }
             }
@@ -222,6 +250,12 @@ struct RouletteWheelView: View {
             .zIndex(2)
         }
         .frame(width: side, height: side)
+    }
+
+    /// 止まったスライスの倍率。動きを減らす設定では大きさを変えない（暗くする・縁取り・光彩だけにする）。
+    private func sliceScale(highlighted: Bool) -> CGFloat {
+        guard highlighted, !reduceMotion else { return 1 }
+        return pulsing ? Theme.stopPulseScale : Theme.stopHoldScale
     }
 
     private func polar(center: CGPoint, angle: Double, radius: CGFloat) -> CGPoint {
@@ -244,6 +278,33 @@ final class WheelDragSession {
         started = false
         ignored = false
         lastLocation = nil
+    }
+}
+
+/// 止まったスライスの外側への光彩。白系と止まったスライスの色は影でにじませる。
+/// 虹色は影にできないので、スライスの輪郭を角度のグラデーションで太くなぞってぼかし、スライスの後ろに敷く
+/// （スライスの塗りは不透明なので、外側にはみ出した分だけが見える）。
+private struct StopGlow<S: Shape>: ViewModifier {
+    let shape: S
+    let style: GlowStyle
+    let sliceColor: Color
+    let shown: Bool
+    let radius: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch style {
+        case .white:
+            content.shadow(color: shown ? Theme.stopGlow : .clear, radius: radius)
+        case .slice:
+            content.shadow(color: shown ? sliceColor.opacity(Theme.stopGlowOpacity) : .clear, radius: radius)
+        case .rainbow:
+            content.background(
+                shape.stroke(Theme.stopGlowRainbow, lineWidth: radius)
+                    .blur(radius: radius / 2)
+                    .opacity(shown ? 1 : 0)
+            )
+        }
     }
 }
 

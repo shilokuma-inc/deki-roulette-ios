@@ -75,6 +75,33 @@ struct WheelSwayTests {
         #expect(axis == SpringAxis(position: 3, velocity: 7))
     }
 
+    /// 周期が刻みより短いばねでも、刻みを細かくして発散させない。
+    @Test func 硬いばねでも発散しない() {
+        let stiff = SpringParameters(response: 0.01, dampingRatio: 0.3)
+        var axis = SpringAxis()
+        var peak = 0.0
+        for _ in 0..<300 {
+            axis.step(toward: 20, duration: 1.0 / 60, spring: stiff)
+            peak = max(peak, abs(axis.position))
+        }
+        #expect(peak < 40)
+        #expect(axis.isAtRest(at: 20))
+    }
+
+    /// 減衰が強すぎても、行き過ぎたり振動したりせずに目標へ寄っていく（強い減衰では寄り方が遅い）。
+    @Test func 強い減衰でも発散しない() {
+        let heavy = SpringParameters(response: 0.6, dampingRatio: 20)
+        var axis = SpringAxis()
+        var previous = 0.0
+        for _ in 0..<300 {
+            axis.step(toward: 20, duration: 1.0 / 60, spring: heavy)
+            #expect(axis.position >= previous - 1e-9)
+            #expect(axis.position <= 20 + 1e-9)
+            previous = axis.position
+        }
+        #expect(previous > 0)
+    }
+
     @Test func 勢いを足すと目標にいても揺れる() {
         var axis = SpringAxis(position: 10, velocity: 0)
         #expect(axis.isAtRest(at: 10))

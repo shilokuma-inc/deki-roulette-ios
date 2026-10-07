@@ -10,14 +10,14 @@ struct SpringAxis: Equatable, Sendable {
 
     /// 1 回の `step` で進める時間の上限（秒）。バックグラウンドから戻ったときなどに間が空いても、揺れが飛ばないようにする。
     static let maxStepDuration: TimeInterval = 0.1
-    /// 数値計算の刻み（秒）。ばねの周期より十分短くして、刻みの粗さで揺れが増えないようにする。
+    /// 数値計算の刻み（秒）の上限。ばねが硬い・減衰が強いときは `SpringParameters.stableStep` まで細かくする。
     static let substep: TimeInterval = 1.0 / 240
 
     /// `target` へ向けて `duration` 秒だけ進める（半陰的オイラー法）。`duration` は `maxStepDuration` で抑える。
     mutating func step(toward target: Double, duration: TimeInterval, spring: SpringParameters = .wheelSway) {
         var remaining = min(max(duration, 0), Self.maxStepDuration)
         while remaining > 1e-12 {
-            let dt = min(remaining, Self.substep)
+            let dt = min(remaining, Self.substep, spring.stableStep)
             let acceleration = -spring.stiffness * (position - target) - spring.damping * velocity
             velocity += acceleration * dt
             position += velocity * dt
@@ -46,7 +46,13 @@ struct SpringParameters: Equatable, Sendable {
     init(response: TimeInterval, dampingRatio: Double) {
         let omega = 2 * Double.pi / max(response, 1e-3)
         stiffness = omega * omega
-        damping = 2 * dampingRatio * omega
+        damping = 2 * max(dampingRatio, 0) * omega
+    }
+
+    /// 半陰的オイラー法が発散しない刻み（秒）。固有角振動数と減衰係数の大きい方に対して 0.2 に収まる長さにする
+    /// （どちらかとの積が 2 を超えると、1 回の更新で目標を大きく行き過ぎて揺れが増え続ける）。
+    var stableStep: TimeInterval {
+        0.2 / max(stiffness.squareRoot(), damping, 1e-9)
     }
 
     /// 3D の盤の揺れ。

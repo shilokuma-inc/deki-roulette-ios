@@ -126,15 +126,19 @@ struct RouletteScreen: View {
 
     /// 盤面から指を離した。追従で回した角度を取り込み、その角度からフリックのスピンを始める。
     /// `dragRotation` の取り込みとスピンの開始は同じ更新に入れる（盤面が離した位置から回り出す）。
-    private func release(angularVelocity: Double, dragRotation: Double) {
+    /// 指を離さずにジェスチャが取り消されたとき（`angularVelocity` が nil）は、追従した角度を残すだけで回さない。
+    private func release(angularVelocity: Double?, dragRotation: Double) {
         model.rotate(by: dragRotation)
-        flick(angularVelocity: angularVelocity)
+        guard let angularVelocity else { return }
+        flick(angularVelocity: angularVelocity, dragRotation: dragRotation)
     }
 
-    /// 盤面のフリック。閾値未満の弱いドラッグではスピンを始めない（盤面は指を離した角度のまま）。
-    /// 強さは周回数にだけ反映し、フリックした向きに回す。盤面は離した瞬間の速さで回り出し、そこから減速する。
-    private func flick(angularVelocity: Double) {
-        guard let flick = FlickSpin.spin(angularVelocity: angularVelocity) else { return }
+    /// 盤面のフリック。強さは周回数にだけ反映し、フリックした向きに回す。盤面は離した瞬間の速さで回り出し、そこから減速する。
+    /// 閾値未満の弱いドラッグでも、最小の周回数で動かした向きに回す（`FlickSpin.releaseSpin`）。
+    private func flick(angularVelocity: Double, dragRotation: Double) {
+        let flick = FlickSpin.releaseSpin(
+            angularVelocity: angularVelocity, dragRotation: dragRotation, fallback: model.lastDirection
+        )
         spin(fullSpins: flick.fullSpins, direction: flick.direction, releaseVelocity: angularVelocity)
     }
 

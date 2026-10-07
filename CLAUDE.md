@@ -69,7 +69,8 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 `Config.flickSampleWindow` に中心のまわりを回った角度から `FlickSpin.angularVelocity` で角速度を出す（離した瞬間の
 `velocity` は揺れが大きく、同じフリックでも回らないことがあるので使わない）。それを
 `FlickSpin.spin` で周回数と向き（`SpinDirection`、角速度の符号）に写し、角速度そのものと一緒に
-`beginSpin(reducedMotion:fullSpins:direction:releaseVelocity:)` に渡す（閾値未満ではスピンを始めず、盤面は離した角度のまま）。
+`beginSpin(reducedMotion:fullSpins:direction:releaseVelocity:)` に渡す（閾値未満でも `FlickSpin.releaseSpin` が最小の周回数で、ドラッグで回した向きに回す。指を離さずにジェスチャが取り消されたときは
+`onRelease` の角速度が nil で、追従した角度を残すだけで回さない）。
 強さは周回数と回り始めの速さ（`spinEasing`）にだけ効き、止まる位置の式は変えない。反時計回りでは `RouletteMath.nextRotation` が
 累積角を減らす向きに決め、`SpinTicks` / `HapticSchedule` は `to < from` を符号を反転して同じ式で数える。モデルは直前のフリックの
 向きを `lastDirection` に覚え、「スピン」ボタンはその向きで回す（初期値は時計回り、保存しない）。停止後は `outcome.index` を `highlightedIndex` として渡し、

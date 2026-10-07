@@ -257,7 +257,9 @@ struct ItemListView: View {
     private var rows: some View {
         // LazyVStack だと末尾の行を消したときに直後のトースト（`undoToast`）が配置されないため
         // 通常の VStack にしている。行は最大 24 なので遅延生成は要らない
-        VStack(spacing: 6) {
+        // 同名の行は items から毎回求めるので、追加・読み込み・復元・元に戻すのどの経路で入っても反映される
+        let duplicateIds = DuplicateLabels.ids(in: items)
+        return VStack(spacing: 6) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 let mark = marks[item.id]
                 ItemRow(
@@ -265,6 +267,7 @@ struct ItemListView: View {
                     color: Theme.sliceAccent(at: index, count: items.count),
                     mark: mark,
                     showMark: revealMarks && mark != nil,
+                    duplicate: duplicateIds.contains(item.id),
                     busy: busy,
                     swipeOpen: Binding(
                         get: { swipedId == item.id },
@@ -388,6 +391,8 @@ private struct ItemRow: View {
     let color: Color
     let mark: Mark?
     let showMark: Bool
+    /// 同名の項目が他にある。印とは無関係に、同名の行すべてに同じ注意を出す。
+    let duplicate: Bool
     let busy: Bool
     /// 左スワイプで削除ボタンを出しているか。開く行を 1 つに絞るため親が持つ。
     @Binding var swipeOpen: Bool
@@ -439,11 +444,16 @@ private struct ItemRow: View {
         HStack(spacing: 0) {
             HStack(spacing: 10) {
                 MarkDot(color: color, mark: showMark ? mark : nil)
-                Text(item.label)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.ivory)
-                    .lineLimit(TypeLayout.labelLineLimit(for: typeSize))
-                    .truncationMode(.tail)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.label)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.ivory)
+                        .lineLimit(TypeLayout.labelLineLimit(for: typeSize))
+                        .truncationMode(.tail)
+                    if duplicate {
+                        duplicateNotice
+                    }
+                }
                 Spacer(minLength: 0)
             }
             .padding(.leading, 12)
@@ -492,6 +502,14 @@ private struct ItemRow: View {
         )
         // 縦のスクロールを妨げないよう同時に認識させ、横が優勢なときだけ反応する
         .simultaneousGesture(swipe, including: busy ? .subviews : .all)
+    }
+
+    /// 同名の項目があることの注意。ラベルの下に置き、行の読み上げにも含める。
+    private var duplicateNotice: some View {
+        Label(L10n.duplicateLabelNotice, systemImage: "exclamationmark.triangle")
+            .font(.caption)
+            .foregroundStyle(Theme.muted)
+            .labelStyle(DuplicateNoticeLabelStyle())
     }
 
     /// スワイプで現れる削除ボタン。見た目は指定の有無で変えない。
@@ -549,6 +567,16 @@ private struct ItemRow: View {
     }
 }
 
+/// アイコンと文言の間を詰め、文言が折り返してもアイコンは 1 行目に揃える。
+private struct DuplicateNoticeLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            configuration.icon
+            configuration.title
+        }
+    }
+}
+
 #Preview("Marks visible") {
     ItemListView(
         items: ItemLabel.makeItems(["ラーメン", "カレー", "寿司", "焼肉"]),
@@ -570,7 +598,7 @@ private struct ItemRow: View {
 
 #Preview("Marks visible AX5") {
     ItemListView(
-        items: ItemLabel.makeItems(["ラーメン", "カレー", "寿司", "焼肉"]),
+        items: ItemLabel.makeItems(["ラーメン", "カレー", "寿司", "焼肉", "カレー"]),
         marks: [:],
         busy: false,
         concealMarks: false,

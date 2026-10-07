@@ -77,12 +77,30 @@ struct ThemeContrastTests {
         }
     }
 
+    // MARK: 結果の帯
+
+    @Test(arguments: styles)
+    func 結果の帯の文字は地に対して4_5対1以上(style: UIUserInterfaceStyle) {
+        #expect(ratio(Theme.resultBandInk, on: Theme.resultBandFill, style) >= 4.5)
+    }
+
+    /// 帯は止まったスライスの上に重なる。白系の地が沈めた盤面から浮くこと（枠と影は装飾で、読みやすさは地で取る）。
+    @Test(arguments: styles)
+    func 結果の帯の地は沈めたスライスに対して3対1以上(style: UIUserInterfaceStyle) {
+        let fill = luminance(resolve(Theme.resultBandFill, style))
+        for slice in Theme.sliceColors {
+            let dimmed = luminance(composite(resolve(Theme.sliceDim, style), over: resolve(slice, style)))
+            #expect((fill + 0.05) / (dimmed + 0.05) >= 3)
+        }
+    }
+
     // MARK: 盤面は外観に依らない
 
     @Test func 盤面の色は外観設定で変わらない() {
         let fixed = [
             Theme.onSlice, Theme.wheelRim, Theme.wheelEdge, Theme.wheelHub, Theme.wheelHubMark,
             Theme.flare, Theme.onFlare, Theme.destructive, Theme.onDestructive, Theme.stopOutline,
+            Theme.resultBandFill, Theme.resultBandInk,
         ] + Theme.sliceColors
         for color in fixed {
             #expect(resolve(color, .light) == resolve(color, .dark))

@@ -3,8 +3,8 @@ import SwiftUI
 /// 盤面の描画。回転は親が `rotation` を書き換え、このビューは `rotationEffect` で受ける（補間の曲線はこのビューが保証する）。
 /// 角度は 12 時を 0 度として時計回りに数える。針は 12 時に固定。
 ///
-/// `highlightedIndex` を渡すと、そのスライスを止まった位置として強調する（他を暗くし、渡された瞬間に
-/// 短く押し出して針を跳ねさせる）。nil に戻すと強調も解ける。
+/// `highlightedIndex` を渡すと、そのスライスを止まった位置として強調する（他を強く暗くし、止まったスライスに
+/// 縁取りと光彩を付け、渡された瞬間に短く押し出して針を跳ねさせる）。nil に戻すと強調も解ける。
 /// ドラッグ中は盤面を指に追従させ（`WheelDrag`）、指を離したら、追従で回した角度と、離す直前の動きから出した
 /// 角速度（度/秒、時計回りが正）を `onRelease` に伝える。指を離さずにジェスチャが取り消されたときは角速度を nil で伝える。
 /// 追従した角度は親が `rotation` に取り込むまでこのビューが持つ。
@@ -171,7 +171,15 @@ struct RouletteWheelView: View {
             if count == 0 {
                 Circle().fill(Theme.wheelRim).frame(width: radius * 2, height: radius * 2)
             } else if count == 1 {
-                Circle().fill(Theme.sliceColor(at: 0, count: count)).frame(width: radius * 2, height: radius * 2)
+                let highlighted = effectiveHighlight == 0
+                Circle().fill(Theme.sliceColor(at: 0, count: count))
+                    .overlay(
+                        Circle().strokeBorder(Theme.stopOutline, lineWidth: Theme.stopOutlineWidth * scale)
+                            .opacity(highlighted ? 1 : 0)
+                    )
+                    .shadow(color: highlighted ? Theme.stopGlow : .clear, radius: Theme.stopGlowRadius * scale)
+                    .animation(reduceMotion ? nil : Theme.stopDimAnimation, value: highlighted)
+                    .frame(width: radius * 2, height: radius * 2)
                 Text(WheelLabel.truncate(items[0].label, limit: maxLabelLength))
                     .font(.system(size: fontSize, weight: .bold))
                     .foregroundStyle(Self.ink)
@@ -206,7 +214,15 @@ struct RouletteWheelView: View {
                             .fill(Theme.sliceDim)
                             .opacity(dimmed ? 1 : 0)
                     )
+                    // 止まったスライスは縁取りと外側への光彩で浮かせる（前に出すので光彩は沈めた隣に重なる）
+                    .overlay(
+                        SliceShape(startAngle: start, endAngle: end, radius: radius)
+                            .stroke(Theme.stopOutline, style: StrokeStyle(lineWidth: Theme.stopOutlineWidth * scale, lineJoin: .round))
+                            .opacity(highlighted ? 1 : 0)
+                    )
+                    .shadow(color: highlighted ? Theme.stopGlow : .clear, radius: Theme.stopGlowRadius * scale)
                     .animation(reduceMotion ? nil : Theme.stopDimAnimation, value: dimmed)
+                    .animation(reduceMotion ? nil : Theme.stopDimAnimation, value: highlighted)
                     // 押し出したスライスが隣に隠れないよう、強調中だけ前に出す
                     .scaleEffect(highlighted && pulsing ? Theme.stopPulseScale : 1)
                     .zIndex(highlighted ? 1 : 0)

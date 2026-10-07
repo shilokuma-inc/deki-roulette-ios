@@ -56,12 +56,24 @@ struct ThemeContrastTests {
         #expect(ratio(Theme.onDestructive, on: Theme.destructive, style) >= 4.5)
     }
 
+    /// 沈めたスライスのラベルは読ませる対象ではない（結果は止まったスライスで見せる）が、どの項目かは見分けられるようにする。
     @Test(arguments: styles)
-    func 沈めたスライスでもラベルは4_5対1以上(style: UIUserInterfaceStyle) {
+    func 沈めたスライスでもラベルは2_5対1以上(style: UIUserInterfaceStyle) {
         for slice in Theme.sliceColors {
             let dimmed = composite(resolve(Theme.sliceDim, style), over: resolve(slice, style))
             let ink = luminance(resolve(Theme.onSlice, style))
-            #expect((luminance(dimmed) + 0.05) / (ink + 0.05) >= 4.5)
+            #expect((luminance(dimmed) + 0.05) / (ink + 0.05) >= 2.5)
+        }
+    }
+
+    // MARK: 停止の強調
+
+    @Test(arguments: styles)
+    func 止まったスライスの縁取りは沈めたスライスに対して3対1以上(style: UIUserInterfaceStyle) {
+        let outline = luminance(resolve(Theme.stopOutline, style))
+        for slice in Theme.sliceColors {
+            let dimmed = luminance(composite(resolve(Theme.sliceDim, style), over: resolve(slice, style)))
+            #expect((outline + 0.05) / (dimmed + 0.05) >= 3)
         }
     }
 
@@ -70,7 +82,7 @@ struct ThemeContrastTests {
     @Test func 盤面の色は外観設定で変わらない() {
         let fixed = [
             Theme.onSlice, Theme.wheelRim, Theme.wheelEdge, Theme.wheelHub, Theme.wheelHubMark,
-            Theme.flare, Theme.onFlare, Theme.destructive, Theme.onDestructive,
+            Theme.flare, Theme.onFlare, Theme.destructive, Theme.onDestructive, Theme.stopOutline,
         ] + Theme.sliceColors
         for color in fixed {
             #expect(resolve(color, .light) == resolve(color, .dark))

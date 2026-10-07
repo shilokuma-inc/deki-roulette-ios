@@ -5,10 +5,15 @@ import SwiftUI
 /// SceneKit で描く。OFF のときの `RouletteWheelView` と同じく、回転は親が `rotation` を書き換え、補間の曲線はこのビューが保証する。
 /// 補間は SwiftUI に任せ（`Wheel3DSurface` の `animatableData`）、毎フレームの角度を SceneKit の盤に写すだけにするので、
 /// 2D と同じ時刻に同じ角度で止まる。スピンの完了判定は今どおり親の `withAnimation … completion:` と保険のタイマーが担う。
+/// 針と結果の帯（`result`）は盤と同じ面に乗せ、盤と一緒に傾ける（回転はしない）。盤が傾いても針が指すスライスと
+/// 止まったスライスが一致して見えるようにするため、2D のように画面に固定した層には置かない。
+/// 傾いた盤や針がはみ出しても切れないよう、場面は盤面の枠より `Theme.Wheel3D.overscan` だけ広く描く（触れた操作は受けない）。
 struct Wheel3DView: View {
     let items: [Item]
     let rotation: Double
     var spinEasing = Config.spinEasing
+    /// 結果の帯。結果が出ている間だけ渡す。
+    var result: Wheel3DResult? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
@@ -16,9 +21,14 @@ struct Wheel3DView: View {
     var body: some View {
         GeometryReader { proxy in
             let side = min(proxy.size.width, proxy.size.height)
-            Wheel3DSurface(items: items, rotation: rotation, diameter: side, displayScale: displayScale)
-                .frame(width: side, height: side)
-                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            let canvas = side * (1 + 2 * Theme.Wheel3D.overscan)
+            Wheel3DSurface(
+                items: items, rotation: rotation, diameter: side, displayScale: displayScale,
+                result: result, reduceMotion: reduceMotion
+            )
+            .frame(width: canvas, height: canvas)
+            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            .allowsHitTesting(false)
         }
         // 2D の盤面と同じく、回転の値の変化だけは外側のトランザクションに依らずスピンの曲線で補間させる
         // （キーボードが閉じる更新に重なっても盤面が最終角度へ飛ばない）。動きを減らす設定では親が値を直接書くので付けない
@@ -28,12 +38,22 @@ struct Wheel3DView: View {
     }
 }
 
+/// 3D の盤面に乗せる結果の帯。`id` が変わったときだけ出し直す（2D と同じく `spinCount` 基準）。
+struct Wheel3DResult: Equatable {
+    let id: String
+    let label: String
+    /// 帯の枠の色（止まったスライスの塗り）。
+    let accent: Color
+}
+
 /// 補間中の回転角を毎フレーム受け取る層。SwiftUI が `animatableData` を補間して `body` を描き直す。
 private struct Wheel3DSurface: View, Animatable {
     let items: [Item]
     var rotation: Double
     let diameter: CGFloat
     let displayScale: CGFloat
+    let result: Wheel3DResult?
+    let reduceMotion: Bool
 
     nonisolated var animatableData: Double {
         get { rotation }
@@ -41,7 +61,10 @@ private struct Wheel3DSurface: View, Animatable {
     }
 
     var body: some View {
-        Wheel3DSceneView(items: items, rotation: rotation, diameter: diameter, displayScale: displayScale)
+        Wheel3DSceneView(
+            items: items, rotation: rotation, diameter: diameter, displayScale: displayScale,
+            result: result, reduceMotion: reduceMotion
+        )
     }
 }
 
@@ -50,6 +73,8 @@ private struct Wheel3DSceneView: UIViewRepresentable {
     let rotation: Double
     let diameter: CGFloat
     let displayScale: CGFloat
+    let result: Wheel3DResult?
+    let reduceMotion: Bool
 
     func makeCoordinator() -> Wheel3DScene {
         Wheel3DScene()
@@ -70,6 +95,7 @@ private struct Wheel3DSceneView: UIViewRepresentable {
     func updateUIView(_ view: SCNView, context: Context) {
         context.coordinator.update(labels: items.map(\.label), diameter: diameter, displayScale: displayScale)
         context.coordinator.spin(to: rotation)
+        context.coordinator.show(result: result, reduceMotion: reduceMotion)
     }
 }
 
@@ -78,8 +104,12 @@ private struct Wheel3DSceneView: UIViewRepresentable {
 final class Wheel3DScene {
     let scene = SCNScene()
     let cameraNode = SCNNode()
-    /// 盤を傾けるノード（支点は表面の中心）。支柱は傾けない。
+    /// 盤を傾けるノード（支点は表面の中心）。針と結果の帯も載せる。支柱は傾けない。
     private let tiltNode = SCNNode()
+    private let pointerNode = SCNNode()
+    /// 出している結果の帯。
+    private var bandNode: SCNNode?
+    private var shownResult: Wheel3DResult?
     /// 盤を回すノード。スライス・縁・ハブを載せる。
     private let spinNode = SCNNode()
     private let postNode = SCNNode()
@@ -116,6 +146,7 @@ final class Wheel3DScene {
         scene.rootNode.addChildNode(key)
 
         tiltNode.addChildNode(spinNode)
+        tiltNode.addChildNode(pointerNode)
         scene.rootNode.addChildNode(tiltNode)
         scene.rootNode.addChildNode(postNode)
     }
@@ -133,9 +164,39 @@ final class Wheel3DScene {
         spinNode.eulerAngles.z = Float(WheelGeometry.spinAngle(rotation: rotation))
     }
 
+    /// 結果の帯を出す・消す。`id` が変わったときだけ焼き直し、2D の `revealOnAppear` と同じ動きで現れる
+    /// （動きを減らす設定では即座に出す）。消すときは 2D と同じく即座に消す。
+    func show(result: Wheel3DResult?, reduceMotion: Bool) {
+        guard result?.id != shownResult?.id || (result != nil && bandNode == nil) else { return }
+        bandNode?.removeFromParentNode()
+        bandNode = nil
+        shownResult = result
+        guard let result, let shape = built else { return }
+        guard let node = makeBand(result, shape: shape) else { return }
+        tiltNode.addChildNode(node)
+        bandNode = node
+        guard !reduceMotion else { return }
+        let rest = node.position
+        node.opacity = 0
+        node.scale = SCNVector3(0.96, 0.96, 1)
+        // y は上向きなので、2D で 6pt 下から上がってくるのは -6
+        node.position.y = rest.y - 6
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = Config.revealAnimationDuration
+        SCNTransaction.animationTimingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.3, 1)
+        node.opacity = 1
+        node.scale = SCNVector3(1, 1, 1)
+        node.position = rest
+        SCNTransaction.commit()
+    }
+
     private func build(_ shape: Shape) {
         spinNode.childNodes.forEach { $0.removeFromParentNode() }
         postNode.childNodes.forEach { $0.removeFromParentNode() }
+        pointerNode.childNodes.forEach { $0.removeFromParentNode() }
+        // 帯は大きさに合わせて焼き直す
+        bandNode?.removeFromParentNode()
+        bandNode = nil
 
         let diameter = Double(shape.diameter)
         let scale = diameter / WheelLabel.referenceDiameter
@@ -144,8 +205,10 @@ final class Wheel3DScene {
         let thickness = Double(Theme.Wheel3D.thickness) * scale
         let count = shape.count
 
+        // 盤面の枠より `overscan` だけ広く描く（ビューも同じだけ広げてあるので、盤の大きさは 2D と同じに見える）
+        let canvas = diameter * (1 + 2 * Double(Theme.Wheel3D.overscan))
         cameraNode.position = SCNVector3(
-            0, 0, Float(WheelGeometry.cameraDistance(diameter: diameter, fieldOfView: Theme.Wheel3D.fieldOfView))
+            0, 0, Float(WheelGeometry.cameraDistance(diameter: canvas, fieldOfView: Theme.Wheel3D.fieldOfView))
         )
         cameraNode.camera?.zNear = 1
         cameraNode.camera?.zFar = diameter * 10
@@ -169,6 +232,57 @@ final class Wheel3DScene {
         addRim(radius: radius, thickness: thickness, scale: scale)
         addHub(scale: scale)
         addPost(thickness: thickness, scale: scale)
+        addPointer(diameter: diameter, scale: scale)
+    }
+
+    /// 帯と針を置く奥行き（盤の表面からの高さ）。縁・ハブより手前に出し、針を帯より手前にする。
+    private static func bandLift(scale: Double) -> Float {
+        Float(Double(max(Theme.Wheel3D.rimLift, Theme.Wheel3D.hubLift)) * scale) + 1
+    }
+
+    /// 12 時の針。2D と同じ大きさ（基準直径に依らない 22 × 26pt）・位置（盤面の枠の上端から 6pt はみ出す）・色で、
+    /// 盤と一緒に傾けるが回さない。
+    private func addPointer(diameter: Double, scale: Double) {
+        let width = 22.0, height = 26.0
+        let top = diameter / 2 + 6
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: -width / 2, y: top))
+        path.addLine(to: CGPoint(x: width / 2, y: top))
+        path.addLine(to: CGPoint(x: 0, y: top - height))
+        path.close()
+        let depth = 3.0
+        let shape = SCNShape(path: path, extrusionDepth: depth)
+        // 表は塗りの色のまま、側面だけ陰影を付ける（SCNShape の素材は表・裏・側面の順）
+        shape.materials = [
+            Self.material(Theme.flare, lit: false), Self.material(Theme.flare, lit: false), Self.material(Theme.flare, lit: true),
+        ]
+        let node = SCNNode(geometry: shape)
+        node.position.z = Self.bandLift(scale: scale) + Float(depth / 2) + 0.5
+        pointerNode.addChildNode(node)
+    }
+
+    /// 結果の帯の板。2D と同じ `ResultBandLabel` を画像に焼き、針の先の下（`ResultBand.top`）に置く。
+    private func makeBand(_ result: Wheel3DResult, shape: Shape) -> SCNNode? {
+        let diameter = Double(shape.diameter)
+        let scale = diameter / WheelLabel.referenceDiameter
+        // 影が切れないよう、焼く範囲を影の分だけ広げる
+        let margin = 8 * scale
+        let content = ResultBandLabel(label: result.label, accent: result.accent, diameter: diameter)
+            .padding(margin)
+            .fontDesign(.rounded)
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = shape.displayScale
+        renderer.proposedSize = ProposedViewSize(width: ResultBand.maxWidth(diameter: diameter) + margin * 2, height: nil)
+        guard let image = renderer.uiImage else { return nil }
+        let plane = SCNPlane(width: image.size.width, height: image.size.height)
+        let material = Self.material(.white, lit: false)
+        material.diffuse.contents = image
+        plane.materials = [material]
+        let node = SCNNode(geometry: plane)
+        let bandTop = diameter / 2 - ResultBand.top(diameter: diameter, pointerBounce: Theme.pointerBounceOffset)
+        let bandHeight = Double(image.size.height) - margin * 2
+        node.position = SCNVector3(0, Float(bandTop - bandHeight / 2), Self.bandLift(scale: scale))
+        return node
     }
 
     /// 1 枚のスライス。表面は照明に依らない塗り、外周の側面は陰影の付く同じ色。

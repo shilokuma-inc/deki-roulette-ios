@@ -11,11 +11,12 @@ struct Wheel3DView: View {
     var spinEasing = Config.spinEasing
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         GeometryReader { proxy in
             let side = min(proxy.size.width, proxy.size.height)
-            Wheel3DSurface(items: items, rotation: rotation, diameter: side)
+            Wheel3DSurface(items: items, rotation: rotation, diameter: side, displayScale: displayScale)
                 .frame(width: side, height: side)
                 .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
         }
@@ -32,6 +33,7 @@ private struct Wheel3DSurface: View, Animatable {
     let items: [Item]
     var rotation: Double
     let diameter: CGFloat
+    let displayScale: CGFloat
 
     nonisolated var animatableData: Double {
         get { rotation }
@@ -39,7 +41,7 @@ private struct Wheel3DSurface: View, Animatable {
     }
 
     var body: some View {
-        Wheel3DSceneView(items: items, rotation: rotation, diameter: diameter)
+        Wheel3DSceneView(items: items, rotation: rotation, diameter: diameter, displayScale: displayScale)
     }
 }
 
@@ -47,6 +49,7 @@ private struct Wheel3DSceneView: UIViewRepresentable {
     let items: [Item]
     let rotation: Double
     let diameter: CGFloat
+    let displayScale: CGFloat
 
     func makeCoordinator() -> Wheel3DScene {
         Wheel3DScene()
@@ -65,12 +68,12 @@ private struct Wheel3DSceneView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
-        context.coordinator.update(count: items.count, diameter: diameter)
+        context.coordinator.update(labels: items.map(\.label), diameter: diameter, displayScale: displayScale)
         context.coordinator.spin(to: rotation)
     }
 }
 
-/// 盤面の 3D の場面。件数と大きさが変わったときだけ組み直し、回転は盤のノードの角度を書き換えるだけにする。
+/// 盤面の 3D の場面。項目のラベルと大きさが変わったときだけ組み直し、回転は盤のノードの角度を書き換えるだけにする。
 @MainActor
 final class Wheel3DScene {
     let scene = SCNScene()
@@ -82,8 +85,11 @@ final class Wheel3DScene {
     private let postNode = SCNNode()
 
     private struct Shape: Equatable {
-        let count: Int
+        let labels: [String]
         let diameter: CGFloat
+        let displayScale: CGFloat
+
+        var count: Int { labels.count }
     }
 
     private var built: Shape?
@@ -114,9 +120,9 @@ final class Wheel3DScene {
         scene.rootNode.addChildNode(postNode)
     }
 
-    /// 件数か大きさが変わっていれば盤を組み直す。
-    func update(count: Int, diameter: CGFloat) {
-        let shape = Shape(count: count, diameter: diameter)
+    /// 項目のラベル（件数）か大きさが変わっていれば盤を組み直す。`displayScale` はラベルを焼く画像の倍率。
+    func update(labels: [String], diameter: CGFloat, displayScale: CGFloat = 2) {
+        let shape = Shape(labels: labels, diameter: diameter, displayScale: max(displayScale, 1))
         guard shape != built, diameter > 0 else { return }
         built = shape
         build(shape)
@@ -158,6 +164,7 @@ final class Wheel3DScene {
             if count > 1 {
                 addSeparators(count: count, radius: radius, scale: scale)
             }
+            addLabels(shape, radius: radius)
         }
         addRim(radius: radius, thickness: thickness, scale: scale)
         addHub(scale: scale)
@@ -198,6 +205,21 @@ final class Wheel3DScene {
             spinNode.addChildNode(node)
         }
         spinNode.addChildNode(ring(inner: radius - width / 2, outer: radius + width / 2, z: lift, color: Theme.onSlice))
+    }
+
+    /// スライスのラベル。2D と同じ位置・向き・省略・文字サイズで 1 枚の画像に焼き、盤の表面（境目の線より手前）に貼る。
+    private func addLabels(_ shape: Shape, radius: Double) {
+        let diameter = Double(shape.diameter)
+        let image = WheelLabelImage.render(
+            labels: shape.labels, diameter: diameter, radius: radius, displayScale: shape.displayScale
+        )
+        let plane = SCNPlane(width: diameter, height: diameter)
+        let material = Self.material(.white, lit: false)
+        material.diffuse.contents = image
+        plane.materials = [material]
+        let node = SCNNode(geometry: plane)
+        node.position.z = 0.3
+        spinNode.addChildNode(node)
     }
 
     /// 外周の縁。盤の表面より少し手前に出し、2D と同じ位置に細い線を入れる。
@@ -265,6 +287,49 @@ final class Wheel3DScene {
         material.diffuse.contents = UIColor(color)
         material.lightingModel = lit ? .lambert : .constant
         return material
+    }
+}
+
+/// 盤面のラベルを焼いた画像。盤と同じ大きさの正方形で、2D の `RouletteWheelView` と同じ位置・向きに置く
+/// （画像の上が 12 時。y は下向きなので、2D の座標の取り方がそのまま使える）。
+@MainActor
+private enum WheelLabelImage {
+    static func render(labels: [String], diameter: Double, radius: Double, displayScale: CGFloat) -> UIImage {
+        let count = labels.count
+        let side = CGFloat(diameter)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = displayScale
+        format.opaque = false
+        let font = roundedBold(size: WheelLabel.fontSize(count: count, diameter: diameter))
+        let limit = WheelLabel.limit(count: count, diameter: diameter)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor(Theme.onSlice)]
+        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { renderer in
+            let context = renderer.cgContext
+            let sliceAngle = count > 0 ? 360 / Double(count) : 360
+            for (index, label) in labels.enumerated() {
+                let text = NSAttributedString(string: WheelLabel.truncate(label, limit: limit), attributes: attributes)
+                let size = text.size()
+                context.saveGState()
+                if count == 1 {
+                    // 1 件だけのときは中央に置く
+                    context.translateBy(x: side / 2, y: side / 2)
+                } else {
+                    let mid = (Double(index) + 0.5) * sliceAngle
+                    let point = WheelGeometry.point(angle: mid, radius: radius * WheelLabel.radiusFraction)
+                    context.translateBy(x: side / 2 + CGFloat(point.x), y: side / 2 - CGFloat(point.y))
+                    context.rotate(by: CGFloat(WheelLabel.rotation(midAngle: mid) * .pi / 180))
+                }
+                text.draw(at: CGPoint(x: -size.width / 2, y: -size.height / 2))
+                context.restoreGState()
+            }
+        }
+    }
+
+    /// 2D の盤面と同じ書体（アプリ全体の `.fontDesign(.rounded)` と `.bold`）。
+    private static func roundedBold(size: Double) -> UIFont {
+        let font = UIFont.systemFont(ofSize: CGFloat(size), weight: .bold)
+        guard let descriptor = font.fontDescriptor.withDesign(.rounded) else { return font }
+        return UIFont(descriptor: descriptor, size: CGFloat(size))
     }
 }
 

@@ -131,7 +131,7 @@ struct RouletteScreen: View {
 
     /// 指で動かしている盤面の針が境目を越えた。触覚はモデルの刻みで鳴り、回転音はここで 1 回鳴らす（間引きはモデル）。
     private func dragCrossedBoundary(at time: TimeInterval) {
-        if model.crossDragBoundary(at: time), soundEnabled { sound.play(at: [0]) }
+        if model.crossDragBoundary(at: time), soundEnabled { sound.playClick() }
     }
 
     /// 盤面から指を離した。追従で回した角度を取り込み、その角度からフリックのスピンを始める。

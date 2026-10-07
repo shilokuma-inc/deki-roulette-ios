@@ -198,10 +198,34 @@ struct WheelSwayStateTests {
 
     @Test func 勢いで目標を越えて揺れる() {
         var sway = WheelSway()
-        sway.advance(toward: .zero, kick: (pitch: 100, roll: 0), at: 0)
+        sway.advance(toward: .zero, at: 0)
+        sway.advance(toward: .zero, kick: (pitch: 100, roll: 0), at: 1.0 / 60)
         sway.advance(toward: .zero, at: 0.05)
         #expect(sway.tilt.pitch > 0)
         #expect(!sway.isAtRest(at: .zero))
+    }
+
+    @Test func 最初の読み取りでは勢いを足さない() {
+        var sway = WheelSway()
+        sway.advance(toward: .zero, kick: (pitch: 100, roll: 100), at: 0)
+        #expect(sway.pitch.velocity == 0 && sway.roll.velocity == 0)
+    }
+
+    /// 同じ勢いが同じ時間続けば、読み取りの間隔に依らずほぼ同じだけ揺れる。
+    @Test func 読み取りの間隔に依らず同じ勢いで同じだけ揺れる() {
+        func swayed(rate: Double) -> Double {
+            var sway = WheelSway()
+            sway.advance(toward: .zero, at: 0)
+            let steps = Int(0.1 * rate)
+            for step in 1...steps {
+                sway.advance(toward: .zero, kick: (pitch: 60, roll: 0), at: Double(step) / rate)
+            }
+            return sway.tilt.pitch
+        }
+        let at60 = swayed(rate: 60)
+        let at120 = swayed(rate: 120)
+        #expect(at60 > 0)
+        #expect(abs(at60 - at120) < at60 * 0.1, "60Hz: \(at60) 120Hz: \(at120)")
     }
 
     @Test func 止めたあとの最初の読み取りでは間の時間を進めない() {

@@ -109,17 +109,21 @@ struct WheelSway: Equatable, Sendable {
     var tilt: WheelTilt { WheelTilt(pitch: pitch.position, roll: roll.position) }
 
     /// 勢い `kick`（度/秒、`SwayKick.velocity`）を足し、時刻 `timestamp` まで目標 `target` へ向けて進める。
-    /// 時刻が戻ったときは進めない。
+    /// `kick` は `nominalInterval`（姿勢を読む間隔）ごとに足す量なので、前の読み取りからの経過時間の割合を掛けて足す
+    /// （読み取りが詰まっても間引かれても、同じ勢いなら同じだけ揺れる）。経過時間はばねと同じ `SpringAxis.maxStepDuration` で抑える。
+    /// 最初の読み取りと時刻が戻ったときは、時間も勢いも進めない。
     mutating func advance(
         toward target: WheelTilt,
         kick: (pitch: Double, roll: Double) = (0, 0),
         at timestamp: TimeInterval,
-        spring: SpringParameters = .wheelSway
+        spring: SpringParameters = .wheelSway,
+        nominalInterval: TimeInterval = Config.motionUpdateInterval
     ) {
-        let duration = lastTimestamp.map { max(0, timestamp - $0) } ?? 0
+        let duration = min(lastTimestamp.map { max(0, timestamp - $0) } ?? 0, SpringAxis.maxStepDuration)
         lastTimestamp = timestamp
-        pitch.kick(kick.pitch)
-        roll.kick(kick.roll)
+        let share = nominalInterval > 0 ? duration / nominalInterval : 0
+        pitch.kick(kick.pitch * share)
+        roll.kick(kick.roll * share)
         pitch.step(toward: target.pitch, duration: duration, spring: spring)
         roll.step(toward: target.roll, duration: duration, spring: spring)
     }

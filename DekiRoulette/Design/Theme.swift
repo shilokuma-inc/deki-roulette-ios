@@ -119,6 +119,29 @@ enum Theme {
         static let pageMaxWidth = wheelMaxWidthRegular + columnSpacing + listWidthRegular + pageHorizontalPadding * 2
     }
 
+    // MARK: 3D の盤面
+
+    /// 3D 表示の盤面の寸法（基準直径 `WheelLabel.referenceDiameter` での pt。盤面の大きさに比例させる）と見え方。
+    /// 盤の塗りは 2D と同じトークン（`sliceColor(at:count:)` / `wheel*` / `onSlice`）で、外観に依らず固定する。
+    enum Wheel3D {
+        /// 盤（スライスの円板）の厚み。
+        static let thickness: CGFloat = 14
+        /// 外周の縁が盤の表面より手前に出る高さ。
+        static let rimLift: CGFloat = 3
+        /// 中心のハブが盤の表面より手前に出る高さ。
+        static let hubLift: CGFloat = 6
+        /// 盤を裏から支える支柱の太さ（半径）と長さ。盤が傾くと縁の下から見える。
+        static let postRadius: CGFloat = 9
+        static let postLength: CGFloat = 70
+        /// 3D の場面を盤面の枠より広く描く割合（片側、盤面の直径に対して）。傾いた盤・針・揺れが枠からはみ出しても切れないようにする。
+        static let overscan: CGFloat = 0.15
+        /// カメラの縦の画角（度）。小さいほど透視が弱く、正面では 2D に近い見え方になる。
+        static let fieldOfView: Double = 30
+        /// 盤の側面・縁・支柱を照らす光の強さ。表面のスライスは照明に依らず塗りの色のまま出す。
+        static let ambientLight: CGFloat = 500
+        static let keyLight: CGFloat = 800
+    }
+
     // MARK: 停止の強調
 
     // 止まった瞬間に針の下のスライスだけを短く押し出して少し大きいまま残し、他のスライスを強く沈める。

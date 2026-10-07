@@ -89,6 +89,29 @@ enum Config {
     /// 止まったスライスの光彩の色（`GlowStyle.rawValue`）を保存する `UserDefaults` のキー。未設定なら `GlowStyle.default`。
     static let glowStyleKey = "glowStyle"
 
+    // MARK: 3D 表示
+
+    /// 盤面を 3D で描くかを保存する `UserDefaults` のキー。未設定なら OFF（今の 2D の盤面）。
+    static let wheel3DEnabledKey = "wheel3DEnabled"
+
+    /// 3D の盤を傾ける基準（`TiltReference.rawValue`）を保存する `UserDefaults` のキー。未設定なら `TiltReference.default`。
+    static let tiltReferenceKey = "tiltReference"
+
+    /// 3D の盤が目標の傾きへ戻るばねの周期（秒）。短いほど素早く追従する。
+    static let wheelSwayResponse: TimeInterval = 0.6
+
+    /// 3D の盤のばねの減衰比。1 で揺り返さずに止まり、小さいほど長く揺れる。
+    static let wheelSwayDampingRatio: Double = 0.3
+
+    /// 端末を動かした勢い（`userAcceleration`、g）を盤の揺れの角速度（度/秒）に写す係数。
+    static let wheelSwayKickGain: Double = 240
+
+    /// 1 回の更新で盤の揺れに足す角速度の上限（度/秒）。強く振っても盤が回り込まないようにする。
+    static let wheelSwayMaxKick: Double = 120
+
+    /// これより小さい勢い（g）は手の震えとみなして揺れに足さない。
+    static let wheelSwayKickThreshold: Double = 0.03
+
     // MARK: 効果音
 
     /// 効果音の ON/OFF を保存する `UserDefaults` のキー。未設定なら ON。
@@ -99,4 +122,12 @@ enum Config {
 
     /// クリック音の音量。密に重なっても耳に刺さらないところまで下げてある。
     static let clickGain: Float = 0.7
+
+    // MARK: 3D の盤の傾き
+
+    /// 3D の盤を端末の姿勢に合わせて倒す最大角（度）。これより大きく傾けても盤はここで止める。
+    static let wheelMaxTilt: Double = 25
+
+    /// 3D の盤を傾けるために端末の姿勢を読む間隔（秒）。
+    static let motionUpdateInterval: TimeInterval = 1.0 / 60
 }

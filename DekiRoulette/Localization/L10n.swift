@@ -54,6 +54,14 @@ enum L10n {
         case .rainbow: tr("glowStyleRainbow")
         }
     }
+    static var wheel3DTitle: String { tr("wheel3DTitle") }
+    static var tiltReferenceTitle: String { tr("tiltReferenceTitle") }
+    static func tiltReferenceName(_ reference: TiltReference) -> String {
+        switch reference {
+        case .flat: tr("tiltReferenceFlat")
+        case .grip: tr("tiltReferenceGrip")
+        }
+    }
     static var soundToggle: String { tr("soundToggle") }
     static var soundNote: String { tr("soundNote") }
     static var close: String { tr("close") }

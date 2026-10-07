@@ -22,6 +22,10 @@ final class RouletteModel {
 
     /// スピン中に針がスライスの境目を越えた回数。境目ごとに触覚を鳴らすトリガで、リセットしない。
     private(set) var boundaryTick = 0
+    /// 指で盤面を動かしている間に境目を越えた回数（間引いたあと）。スピン中より強い触覚を鳴らすトリガで、リセットしない。
+    private(set) var dragBoundaryTick = 0
+    private var dragFeedback = WheelDrag.FeedbackThrottle()
+
     /// スピン中にクリック音を鳴らす時刻（開始からの秒）。View が再生に渡す。
     private(set) var clickTimes: [TimeInterval] = []
 
@@ -141,6 +145,15 @@ final class RouletteModel {
     func rotate(by delta: Double) {
         guard !spinning, delta != 0 else { return }
         rotation += delta
+    }
+
+    /// 指で動かしている盤面の針が、時刻 `time`（秒）に境目を越えた。間引いたうえで触覚の刻み（`dragBoundaryTick`）を進め、
+    /// 回転音を鳴らすかを返す。演出中は指で動かせないので何もしない。
+    func crossDragBoundary(at time: TimeInterval) -> Bool {
+        guard !spinning else { return false }
+        let feedback = dragFeedback.cross(at: time)
+        if feedback.haptic { dragBoundaryTick += 1 }
+        return feedback.click
     }
 
     /// スピンを開始し、盤面が止まるべき累積回転角を返す。回せないときは nil。

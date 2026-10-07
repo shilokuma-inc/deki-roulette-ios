@@ -9,6 +9,7 @@ import SwiftUI
 /// 角速度（度/秒、時計回りが正）を `onRelease` に伝える。指を離さずにジェスチャが取り消されたときは角速度を nil で伝える。
 /// 追従した角度は親が `rotation` に取り込むまでこのビューが持つ。
 /// `interactive` が false の間（演出中）は追従もフリックもしない。
+/// 追従で針がスライスの境目を越えたら、その時刻（秒）を `onBoundaryCross` に伝える（親が回転音と触覚を鳴らす）。
 /// `spinEasing` はスピンの曲線。フリックでは離した瞬間の速さに合わせて親が決める（ボタンでは `Config.spinEasing`）。
 struct RouletteWheelView: View {
     let items: [Item]
@@ -16,6 +17,7 @@ struct RouletteWheelView: View {
     var highlightedIndex: Int? = nil
     var interactive = true
     var spinEasing = Config.spinEasing
+    var onBoundaryCross: ((_ time: TimeInterval) -> Void)? = nil
     var onRelease: ((_ angularVelocity: Double?, _ dragRotation: Double) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -106,7 +108,10 @@ struct RouletteWheelView: View {
                     dragSession.ignored = !interactive
                 }
                 guard !dragSession.ignored else { return }
-                follow(to: value.location, from: dragSession.lastLocation ?? value.startLocation, center: center)
+                follow(
+                    to: value.location, from: dragSession.lastLocation ?? value.startLocation, center: center,
+                    time: value.time.timeIntervalSinceReferenceDate
+                )
                 flickSamples.append(FlickSpin.Sample(time: value.time.timeIntervalSinceReferenceDate, location: value.location))
             }
             .onEnded { value in
@@ -114,19 +119,26 @@ struct RouletteWheelView: View {
                     dragSession.reset()
                     return
                 }
-                follow(to: value.location, from: dragSession.lastLocation ?? value.startLocation, center: center)
+                follow(
+                    to: value.location, from: dragSession.lastLocation ?? value.startLocation, center: center,
+                    time: value.time.timeIntervalSinceReferenceDate
+                )
                 flickSamples.append(FlickSpin.Sample(time: value.time.timeIntervalSinceReferenceDate, location: value.location))
                 release(angularVelocity: FlickSpin.angularVelocity(samples: flickSamples.samples, center: center))
             }
     }
 
-    /// 前の位置から今の位置までに指が中心のまわりを回った分だけ盤面を回す。ドラッグ中は音も触覚も鳴らさない。
-    private func follow(to location: CGPoint, from previous: CGPoint, center: CGPoint) {
+    /// 前の位置から今の位置までに指が中心のまわりを回った分だけ盤面を回す。針が境目を越えたら親に伝える（音と触覚）。
+    private func follow(to location: CGPoint, from previous: CGPoint, center: CGPoint, time: TimeInterval) {
         dragSession.lastLocation = location
         let delta = WheelDrag.rotationDelta(from: previous, to: location, center: center)
         guard delta != 0 else { return }
+        let before = rotation + dragRotation
         dragRotation += delta
         if highlightedIndex != nil { displacedByDrag = true }
+        if WheelDrag.boundaryCrossings(from: before, to: rotation + dragRotation, count: items.count) > 0 {
+            onBoundaryCross?(time)
+        }
     }
 
     /// 指を離した（またはジェスチャが取り消された。角速度は nil）。追従した角度と角速度を親に渡す。

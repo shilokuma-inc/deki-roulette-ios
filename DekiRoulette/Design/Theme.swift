@@ -121,11 +121,21 @@ enum Theme {
 
     // MARK: 停止の強調
 
-    // 止まった瞬間に針の下のスライスだけを短く押し出し、他のスライスを少し沈める。
-    // 専用色は使わず、`onSlice` を薄く重ねて暗くするだけにする。
+    // 止まった瞬間に針の下のスライスだけを短く押し出し、他のスライスを強く沈める。
+    // 止まったスライスには白系の縁取りと外側への光彩を付け、細いスライスでも見つけられるようにする。
+    // 専用色は使わず、暗くするのは `onSlice` を重ねるだけ、縁取りと光彩は盤面と同じく外観に依らない白系にする。
 
-    /// 止まっていないスライスに重ねて暗くする色。ラベルが `onSlice` で読める範囲に留める。
-    static let sliceDim = onSlice.opacity(0.16)
+    /// 止まっていないスライスに重ねて暗くする色。沈めたラベルは読ませる対象ではないが、
+    /// どの項目かは見分けられる範囲に留める（`ThemeContrastTests`）。
+    static let sliceDim = onSlice.opacity(0.5)
+    /// 止まったスライスの縁取り。沈めた隣のスライスに対して 3:1 以上の明るさにする。
+    static let stopOutline = Color(hex: 0xF5EFE6)
+    /// 縁取りの太さ（基準直径 `WheelLabel.referenceDiameter` での pt。盤面の大きさに比例させる）。
+    static let stopOutlineWidth: CGFloat = 3
+    /// 止まったスライスから外側へにじませる光彩。
+    static let stopGlow = Color(hex: 0xF5EFE6).opacity(0.8)
+    /// 光彩の半径（基準直径での pt）。
+    static let stopGlowRadius: CGFloat = 10
     /// 止まったスライスを押し出す倍率。
     static let stopPulseScale: CGFloat = 1.04
     /// 停止の瞬間に針が沈む量（pt）。

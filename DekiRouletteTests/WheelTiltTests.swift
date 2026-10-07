@@ -46,6 +46,21 @@ struct WheelTiltTests {
         #expect(isClose(unit, scaled))
     }
 
+    @Test func 斜めに傾けると傾いた向きに倒れる() throws {
+        let tilt = try #require(TiltMapping.deviceTilt(DeviceGravity(x: 0.5, y: -0.5, z: -0.5.squareRoot())))
+        #expect(abs(tilt.magnitude - 45) < 1e-9)
+        #expect(abs(tilt.pitch - tilt.roll) < 1e-9)
+        #expect(tilt.pitch > 0)
+    }
+
+    /// 横倒し（90 度）を越えても傾きが跳ばない。
+    @Test func 横倒しを越えても連続する() throws {
+        let before = try #require(TiltMapping.deviceTilt(rolledRight(89)))
+        let after = try #require(TiltMapping.deviceTilt(rolledRight(91)))
+        #expect(isClose(before, WheelTilt(pitch: 0, roll: 89)))
+        #expect(isClose(after, WheelTilt(pitch: 0, roll: 91)))
+    }
+
     @Test func 重力が読めないときは傾きを出さない() {
         #expect(TiltMapping.deviceTilt(DeviceGravity(x: 0, y: 0, z: 0)) == nil)
     }
@@ -102,6 +117,25 @@ struct WheelTiltTests {
     @Test func 基準からの差は一周をまたがない() {
         let tilt = TiltMapping.target(gravity: raised(185), baseline: raised(175), reduceMotion: false, maxAngle: 25)
         #expect(abs(tilt.pitch - 10) < 1e-9)
+    }
+
+    /// 横倒しに近い基準からさらに倒しても、基準からの変化の分だけ傾く。
+    @Test func 横倒しをまたぐ基準からの変化も連続する() {
+        let tilt = TiltMapping.target(gravity: rolledRight(91), baseline: rolledRight(89), reduceMotion: false, maxAngle: 25)
+        #expect(isClose(tilt, WheelTilt(pitch: 0, roll: 2)))
+    }
+
+    /// 縦に持った基準から右を下げると、盤の右端が手前に起きる（基準の姿勢の中で見た向きで傾く）。
+    @Test func 縦に持った基準から右を下げると右端が起きる() {
+        let rad = 10 * Double.pi / 180
+        let rolledUpright = DeviceGravity(x: sin(rad), y: -cos(rad), z: 0)
+        let tilt = TiltMapping.target(gravity: rolledUpright, baseline: raised(90), reduceMotion: false, maxAngle: 25)
+        #expect(isClose(tilt, WheelTilt(pitch: 0, roll: 10)))
+    }
+
+    @Test func 画面が下向きの基準でも傾きを出す() {
+        let tilt = TiltMapping.target(gravity: raised(170), baseline: raised(180), reduceMotion: false, maxAngle: 25)
+        #expect(isClose(tilt, WheelTilt(pitch: -10, roll: 0)))
     }
 
     // MARK: 視差効果を減らす

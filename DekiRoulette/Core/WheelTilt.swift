@@ -29,13 +29,17 @@ struct WheelTilt: Equatable, Sendable {
 enum TiltMapping {
     /// 重力の向きから求めた端末の傾き。盤を水平（重力に直交）に保ったときに画面から見える傾きで、
     /// 水平に置くと正面、縦に起こすと `pitch` が 90 度（盤が奥へ倒れて見える）、右を下げると `roll` が正になる。
+    /// 傾いた向き（画面上の重力の向き）と、水平からの角度の積で表すので、横に 90 度を超えて倒しても連続して変わる
+    /// （軸ごとに `atan2` / `asin` で求めると、横倒しを越えたところで `pitch` が 180 度跳ぶ）。
     /// 重力が読めない（長さが 0）ときは nil。
     static func deviceTilt(_ gravity: DeviceGravity) -> WheelTilt? {
-        let length = (gravity.x * gravity.x + gravity.y * gravity.y + gravity.z * gravity.z).squareRoot()
-        guard length > 1e-6 else { return nil }
-        let pitch = atan2(-gravity.y, -gravity.z) * 180 / .pi
-        let roll = asin(max(-1, min(1, gravity.x / length))) * 180 / .pi
-        return WheelTilt(pitch: pitch, roll: roll)
+        guard let unit = normalized(gravity) else { return nil }
+        let horizontal = (unit.x * unit.x + unit.y * unit.y).squareRoot()
+        // 真上か真下を向いていて傾いた向きが定まらない。真下（画面が下向き）は奥へ倒し切った扱いにする
+        guard horizontal > 1e-12 else { return unit.z < 0 ? .zero : WheelTilt(pitch: 180, roll: 0) }
+        // acos(-z) は正面の近くで桁が落ちるので atan2 で求める
+        let angle = atan2(horizontal, -unit.z) * 180 / .pi
+        return WheelTilt(pitch: angle * -unit.y / horizontal, roll: angle * unit.x / horizontal)
     }
 
     /// 盤の目標の傾き。`baseline` の姿勢を正面とし、そこからの姿勢の変化で傾ける。
@@ -51,15 +55,30 @@ enum TiltMapping {
         maxAngle: Double = Config.wheelMaxTilt
     ) -> WheelTilt {
         guard !reduceMotion,
-              let current = deviceTilt(gravity),
               let baseline,
-              let origin = deviceTilt(baseline)
+              let relative = relativeGravity(gravity, from: baseline),
+              let change = deviceTilt(relative)
         else { return .zero }
-        let change = WheelTilt(
-            pitch: normalized(current.pitch - origin.pitch),
-            roll: current.roll - origin.roll
-        )
         return clamped(change, maxAngle: maxAngle)
+    }
+
+    /// `baseline` を水平に置いた状態（`DeviceGravity.flat`）へ重ねる最短の回転で `gravity` を回したもの。
+    /// 基準からの変化を、水平に置いた状態からの傾きとして測れる。どちらかが読めないときは nil。
+    static func relativeGravity(_ gravity: DeviceGravity, from baseline: DeviceGravity) -> DeviceGravity? {
+        guard let p = normalized(gravity), let a = normalized(baseline) else { return nil }
+        let b = DeviceGravity.flat
+        let c = dot(a, b)
+        // 基準が真下（画面が下向き）だと最短の回転が定まらないので、画面の横軸まわりに半回転する
+        guard c > -1 + 1e-9 else { return DeviceGravity(x: p.x, y: -p.y, z: -p.z) }
+        // ロドリゲスの回転公式: R p = p + v × p + v × (v × p) / (1 + c)（v = a × b、c = a · b）
+        let v = cross(a, b)
+        let vp = cross(v, p)
+        let vvp = cross(v, vp)
+        return DeviceGravity(
+            x: p.x + vp.x + vvp.x / (1 + c),
+            y: p.y + vp.y + vvp.y / (1 + c),
+            z: p.z + vp.z + vvp.z / (1 + c)
+        )
     }
 
     /// 正面からの傾きが `maxAngle` を超えたら、向きを保ったまま `maxAngle` まで縮める。
@@ -70,9 +89,17 @@ enum TiltMapping {
         return WheelTilt(pitch: tilt.pitch * scale, roll: tilt.roll * scale)
     }
 
-    /// 角度を -180 以上 180 未満に収める（裏返しをまたいだ差が一周分ずれないように）。
-    private static func normalized(_ degrees: Double) -> Double {
-        let wrapped = (degrees + 180).truncatingRemainder(dividingBy: 360)
-        return (wrapped < 0 ? wrapped + 360 : wrapped) - 180
+    private static func normalized(_ v: DeviceGravity) -> DeviceGravity? {
+        let length = dot(v, v).squareRoot()
+        guard length > 1e-6 else { return nil }
+        return DeviceGravity(x: v.x / length, y: v.y / length, z: v.z / length)
+    }
+
+    private static func dot(_ a: DeviceGravity, _ b: DeviceGravity) -> Double {
+        a.x * b.x + a.y * b.y + a.z * b.z
+    }
+
+    private static func cross(_ a: DeviceGravity, _ b: DeviceGravity) -> DeviceGravity {
+        DeviceGravity(x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x)
     }
 }

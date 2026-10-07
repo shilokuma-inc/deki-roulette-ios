@@ -60,7 +60,8 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 盤面は 12 時を 0 度、時計回り。`SliceShape` は `clockwise: false` で画面上は時計回りになる（y 軸が下向きのため）。
 
 盤面のフリックでも始められる。ドラッグ中は盤面を指に追従させる。`WheelDragArea`（2D の `RouletteWheelView` と 3D の `Wheel3DView` で共有）が `WheelDrag.rotationDelta` で
-指が中心のまわりを回った角度を `@State dragRotation` に足し、`rotationEffect(rotation + dragRotation)` で回す（ドラッグ中は
+指が中心のまわりを回った角度を `@State dragRotation` に足して盤面に渡し、2D は `rotationEffect(rotation + dragRotation)` で、
+3D は `Wheel3DSurface` に `rotation + dragRotation` を渡して盤のノードを回す（どちらもドラッグ中は
 `rotation` が変わらないのでスピンの曲線の `.animation` は掛からない）。指を離すと `dragRotation` を 0 に戻し、
 同じ更新で `RouletteScreen` が `model.rotate(by:)` で取り込んでからスピンを始める（見た目は離した角度から続き、止まる累積角・
 音・触覚の時刻もその角度から求める）。演出中（`interactive == false`）に始まったドラッグは追従もフリックもしない。

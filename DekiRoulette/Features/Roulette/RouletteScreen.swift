@@ -5,6 +5,7 @@ struct RouletteScreen: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
     @AppStorage(Config.soundEnabledKey) private var soundEnabled = true
+    @AppStorage(Config.glowStyleKey) private var glowStyle = GlowStyle.default
     let model: RouletteModel
     @State private var sound = SpinSoundPlayer()
 
@@ -73,6 +74,7 @@ struct RouletteScreen: View {
                 highlightedIndex: model.outcome?.index,
                 interactive: !model.spinning,
                 spinEasing: model.spinEasing,
+                glowStyle: glowStyle,
                 onBoundaryCross: dragCrossedBoundary,
                 onRelease: release
             )

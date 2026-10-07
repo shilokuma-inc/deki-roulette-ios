@@ -194,7 +194,7 @@ struct RouletteWheelView: View {
                     let start = Double(index) * sliceAngle
                     let end = start + sliceAngle
                     let mid = start + sliceAngle / 2
-                    let labelPoint = polar(center: center, angle: mid, radius: radius * 0.62)
+                    let labelPoint = polar(center: center, angle: mid, radius: radius * WheelLabel.radiusFraction)
                     let highlighted = index == effectiveHighlight
                     let dimmed = effectiveHighlight != nil && !highlighted
 
@@ -211,7 +211,7 @@ struct RouletteWheelView: View {
                             .foregroundStyle(Self.ink)
                             .fixedSize()
                             // 左半分はそのまま回すと文字が上下逆さまになるため 180 度返す
-                            .rotationEffect(.degrees(mid > 180 ? mid + 90 : mid - 90))
+                            .rotationEffect(.degrees(WheelLabel.rotation(midAngle: mid)))
                             .position(labelPoint)
                     }
                     // 止まったスライス以外に地色を薄く重ねて沈める

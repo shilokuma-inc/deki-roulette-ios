@@ -340,6 +340,26 @@ struct RouletteModelTests {
         #expect(model.spinEasing == Config.spinEasing)
     }
 
+    @Test func 指で動かして境目を越えると強い触覚の刻みが進む() {
+        let model = makeModel()
+        #expect(model.crossDragBoundary(at: 1))
+        #expect(model.dragBoundaryTick == 1)
+        // 詰まった境目は間引く
+        #expect(!model.crossDragBoundary(at: 1.01))
+        #expect(model.dragBoundaryTick == 1)
+        #expect(model.crossDragBoundary(at: 1 + Config.hapticMinInterval))
+        #expect(model.dragBoundaryTick == 2)
+        // スピン中の刻みとは別に数える
+        #expect(model.boundaryTick == 0)
+    }
+
+    @Test func 演出中は境目の音と触覚を鳴らさない() {
+        let model = makeModel()
+        _ = model.beginSpin(reducedMotion: false)
+        #expect(!model.crossDragBoundary(at: 1))
+        #expect(model.dragBoundaryTick == 0)
+    }
+
     @Test func 演出中は指で回せない() {
         let model = makeModel()
         let next = model.beginSpin(reducedMotion: false)!

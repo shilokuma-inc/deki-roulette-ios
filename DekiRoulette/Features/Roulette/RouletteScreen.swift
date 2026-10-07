@@ -52,6 +52,10 @@ struct RouletteScreen: View {
         .sensoryFeedback(trigger: model.boundaryTick) { _, _ in
             hapticsEnabled ? .selection : nil
         }
+        // 指で動かしている間の境目は、スピン中の刻みより強く返す
+        .sensoryFeedback(trigger: model.dragBoundaryTick) { _, _ in
+            hapticsEnabled ? .impact(weight: Config.hapticDragBoundaryWeight) : nil
+        }
         .sensoryFeedback(trigger: model.outcome) { _, outcome in
             hapticsEnabled && outcome != nil ? .success : nil
         }
@@ -70,6 +74,7 @@ struct RouletteScreen: View {
                 highlightedIndex: model.outcome?.index,
                 interactive: !model.spinning,
                 spinEasing: model.spinEasing,
+                onBoundaryCross: dragCrossedBoundary,
                 onRelease: release
             )
             .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
@@ -122,6 +127,11 @@ struct RouletteScreen: View {
     /// 「スピン」ボタン。直前のフリックの向きで回す。
     private func spin() {
         spin(fullSpins: nil, direction: nil, releaseVelocity: nil)
+    }
+
+    /// 指で動かしている盤面の針が境目を越えた。触覚はモデルの刻みで鳴り、回転音はここで 1 回鳴らす（間引きはモデル）。
+    private func dragCrossedBoundary(at time: TimeInterval) {
+        if model.crossDragBoundary(at: time), soundEnabled { sound.playClick() }
     }
 
     /// 盤面から指を離した。追従で回した角度を取り込み、その角度からフリックのスピンを始める。

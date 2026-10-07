@@ -78,6 +78,9 @@ enum Config {
     /// 長押しで指定が切り替わった瞬間の、本人の指にだけ伝わる軽い手応え。
     static let hapticMarkToggleWeight: SensoryFeedback.Weight = .light
 
+    /// 盤面を指で動かしている間に境目を越えた手応え。スピン中の刻み（`.selection`）より強くする。
+    static let hapticDragBoundaryWeight: SensoryFeedback.Weight = .medium
+
     /// スピン中に境目を越える触覚を鳴らす最短間隔。序盤は境目を越える間隔がこれより短いので間引く。
     static let hapticMinInterval: TimeInterval = 0.06
 

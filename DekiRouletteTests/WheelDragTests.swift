@@ -75,4 +75,38 @@ struct WheelDragTests {
         }
         #expect(abs(total - 750) < 1e-6)
     }
+
+    // MARK: 境目
+
+    @Test func 境目を越えた数を向きに依らず数える() {
+        // 4 項目なので境目は 90 度ごと
+        #expect(WheelDrag.boundaryCrossings(from: 80, to: 100, count: 4) == 1)
+        #expect(WheelDrag.boundaryCrossings(from: 100, to: 80, count: 4) == 1)
+        #expect(WheelDrag.boundaryCrossings(from: 10, to: 80, count: 4) == 0)
+        #expect(WheelDrag.boundaryCrossings(from: 10, to: 280, count: 4) == 3)
+    }
+
+    @Test func 負の累積角でも境目を数える() {
+        #expect(WheelDrag.boundaryCrossings(from: 5, to: -5, count: 4) == 1)
+        #expect(WheelDrag.boundaryCrossings(from: -95, to: -85, count: 4) == 1)
+        #expect(WheelDrag.boundaryCrossings(from: -1000, to: -1000 - 360, count: 6) == 6)
+    }
+
+    @Test func 項目が1件以下なら境目は無い() {
+        #expect(WheelDrag.boundaryCrossings(from: 0, to: 720, count: 1) == 0)
+        #expect(WheelDrag.boundaryCrossings(from: 0, to: 720, count: 0) == 0)
+    }
+
+    @Test func 詰まった境目の音と触覚を間引く() {
+        var throttle = WheelDrag.FeedbackThrottle()
+        let click = Config.clickMinInterval
+        let haptic = Config.hapticMinInterval
+        #expect(throttle.cross(at: 10) == (click: true, haptic: true))
+        // 回転音の間隔は空いたが、触覚の間隔はまだ空いていない
+        let afterClick = 10 + click * 1.1
+        #expect(throttle.cross(at: afterClick) == (click: true, haptic: false))
+        #expect(throttle.cross(at: afterClick + click * 0.5) == (click: false, haptic: false))
+        // 鳴らさなかった境目は間隔の起点にしない
+        #expect(throttle.cross(at: 10 + max(haptic, click * 1.1 + click) * 1.1) == (click: true, haptic: true))
+    }
 }

@@ -12,6 +12,30 @@ enum WheelDrag {
         return normalized(angle(of: to, around: center) - angle(of: from, around: center))
     }
 
+    /// 盤面の累積角が `from` から `to` へ動いたときに、針がスライスの境目を越えた数（向きに依らず 0 以上）。
+    /// 境目は累積角が `360 / count` の倍数に達するところ（`SpinTicks` と同じ）。1 件以下の盤面には境目が無いので 0。
+    static func boundaryCrossings(from: Double, to: Double, count: Int) -> Int {
+        guard count > 1 else { return 0 }
+        let sliceAngle = 360.0 / Double(count)
+        return abs(Int((to / sliceAngle).rounded(.down)) - Int((from / sliceAngle).rounded(.down)))
+    }
+
+    /// ドラッグ中に境目を越えたときの回転音と触覚の間引き。指を速く動かすと境目が詰まるので、
+    /// スピン中と同じ最短間隔（`Config.clickMinInterval` / `Config.hapticMinInterval`）より詰まったものは鳴らさない。
+    struct FeedbackThrottle {
+        private var lastClick = -Double.infinity
+        private var lastHaptic = -Double.infinity
+
+        /// 時刻 `time`（秒）に境目を越えた。回転音と触覚をそれぞれ鳴らすかを返す。
+        mutating func cross(at time: TimeInterval) -> (click: Bool, haptic: Bool) {
+            let click = time - lastClick >= Config.clickMinInterval
+            let haptic = time - lastHaptic >= Config.hapticMinInterval
+            if click { lastClick = time }
+            if haptic { lastHaptic = time }
+            return (click, haptic)
+        }
+    }
+
     /// 中心から見た向き（度）。SwiftUI は y 軸が下向きなので、値が増える向きが画面上の時計回りになる。
     static func angle(of point: CGPoint, around center: CGPoint) -> Double {
         atan2(Double(point.y - center.y), Double(point.x - center.x)) * 180 / .pi

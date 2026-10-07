@@ -133,6 +133,8 @@ enum Theme {
         /// 盤を裏から支える支柱の太さ（半径）と長さ。盤が傾くと縁の下から見える。
         static let postRadius: CGFloat = 9
         static let postLength: CGFloat = 70
+        /// 3D の場面を盤面の枠より広く描く割合（片側、盤面の直径に対して）。傾いた盤・針・揺れが枠からはみ出しても切れないようにする。
+        static let overscan: CGFloat = 0.15
         /// カメラの縦の画角（度）。小さいほど透視が弱く、正面では 2D に近い見え方になる。
         static let fieldOfView: Double = 30
         /// 盤の側面・縁・支柱を照らす光の強さ。表面のスライスは照明に依らず塗りの色のまま出す。

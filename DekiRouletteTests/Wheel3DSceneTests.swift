@@ -8,6 +8,8 @@ import Testing
 @MainActor
 struct Wheel3DSceneTests {
     private let size: CGFloat = 320
+    /// 描く範囲（盤面の枠より `overscan` だけ広い）。
+    private var canvas: CGFloat { size * (1 + 2 * Theme.Wheel3D.overscan) }
 
     /// 場面を描いた画素（RGBA8、sRGB）。
     private struct Pixels {
@@ -28,7 +30,7 @@ struct Wheel3DSceneTests {
         let renderer = SCNRenderer(device: device, options: nil)
         renderer.scene = scene.scene
         renderer.pointOfView = scene.cameraNode
-        let image = renderer.snapshot(atTime: 0, with: CGSize(width: size, height: size), antialiasingMode: .none)
+        let image = renderer.snapshot(atTime: 0, with: CGSize(width: canvas, height: canvas), antialiasingMode: .none)
         let cgImage = try #require(image.cgImage)
         let width = cgImage.width, height = cgImage.height
         var bytes = [UInt8](repeating: 0, count: width * height * 4)
@@ -47,10 +49,15 @@ struct Wheel3DSceneTests {
 
     /// 盤面の角度 `angle`（12 時が 0 度、時計回り）・半径の割合 `fraction` の画素の位置（画像は y が下向き）。
     private func location(angle: Double, fraction: Double, pixels: Pixels) -> CGPoint {
-        let scale = Double(pixels.width) / Double(size)
         let radius = (Double(size) / 2 - 16 * Double(size) / WheelLabel.referenceDiameter) * fraction
         let point = WheelGeometry.point(angle: angle, radius: radius)
-        return CGPoint(x: (Double(size) / 2 + point.x) * scale, y: (Double(size) / 2 - point.y) * scale)
+        return location(x: point.x, y: point.y, pixels: pixels)
+    }
+
+    /// 盤の平面の座標（中心が原点、y が上）の画素の位置。
+    private func location(x: Double, y: Double, pixels: Pixels) -> CGPoint {
+        let scale = Double(pixels.width) / Double(canvas)
+        return CGPoint(x: (Double(canvas) / 2 + x) * scale, y: (Double(canvas) / 2 - y) * scale)
     }
 
     private func srgb(_ color: Color) -> SIMD3<Double> {
@@ -159,5 +166,45 @@ struct Wheel3DSceneTests {
         let pixels = try render(scene)
         let own = location(angle: 135, fraction: WheelLabel.radiusFraction, pixels: pixels)
         #expect(inkCount(around: own, pixels: pixels) == 0)
+    }
+
+    // MARK: 針と結果の帯
+
+    @Test func 針は12時に塗りの色のまま出る() throws {
+        let pixels = try render(makeScene(count: 4, rotation: 0))
+        // 針の先（盤面の枠の上端から 20pt 下）より少し上の中央
+        let color = pixels.color(at: location(x: 0, y: Double(size) / 2 - 8, pixels: pixels))
+        #expect(isClose(color, srgb(Theme.flare)), "\(color)")
+    }
+
+    @Test func 針は盤と一緒に回らない() throws {
+        let pixels = try render(makeScene(count: 4, rotation: 123))
+        let color = pixels.color(at: location(x: 0, y: Double(size) / 2 - 8, pixels: pixels))
+        #expect(isClose(color, srgb(Theme.flare)), "\(color)")
+    }
+
+    /// 帯の中央（針の先の下）の位置。
+    private var bandCenterY: Double {
+        let diameter = Double(size)
+        let top = diameter / 2 - ResultBand.top(diameter: diameter, pointerBounce: Theme.pointerBounceOffset)
+        // 帯の高さはおよそ文字の高さ + 上下の余白。中央より少し上を見る
+        return top - ResultBand.fontSize(diameter: diameter) * 0.5
+    }
+
+    @Test func 結果の帯は針の下に出る() throws {
+        let scene = makeScene(count: 4, rotation: 0)
+        scene.show(result: Wheel3DResult(id: "a1", label: "\u{3000}", accent: Theme.sliceColor(at: 2, count: 4)), reduceMotion: true)
+        let pixels = try render(scene)
+        let color = pixels.color(at: location(x: 0, y: bandCenterY, pixels: pixels))
+        #expect(isClose(color, srgb(Theme.resultBandFill)), "\(color)")
+    }
+
+    @Test func 結果が消えると帯も消える() throws {
+        let scene = makeScene(count: 4, rotation: 0)
+        scene.show(result: Wheel3DResult(id: "a1", label: "\u{3000}", accent: Theme.sliceColor(at: 2, count: 4)), reduceMotion: true)
+        scene.show(result: nil, reduceMotion: true)
+        let pixels = try render(scene)
+        let color = pixels.color(at: location(x: 0, y: bandCenterY, pixels: pixels))
+        #expect(!isClose(color, srgb(Theme.resultBandFill)), "\(color)")
     }
 }

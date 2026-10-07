@@ -31,7 +31,7 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
   `ThemeContrastTests` でコントラスト比を検証する。
 - スライス色は必ず件数つきで引く（`Theme.sliceColor(at:count:)` / `sliceAccent(at:count:)`）。添字は
   `SlicePalette`（`Core/`）が決め、件数が `n % 色数 == 1` のときだけ末尾をずらして環の継ぎ目が同じ色にならないようにする。
-  盤面の塗り（`RouletteWheelView`）・行の色見本（`ItemListView`）・結果表示の枠（`RouletteScreen`）は同じ関数で引く。
+  盤面の塗り（`RouletteWheelView`）・行の色見本（`ItemListView`）・結果の帯の枠（`RouletteScreen`）は同じ関数で引く。
 - レイアウトの寸法（盤面の上限、横並びの列幅、ページ幅）は `Theme.Layout` に置く。`horizontalSizeClass == .regular`
   で横並びになり、盤面は 480pt まで広がる。盤面ラベルの省略と文字サイズは `WheelLabel`（`Core/`）が直径から決める。
 - 項目リストは `ItemStore`（`Core/`）が画面ごとに `UserDefaults` へ保存する。保存するのは `id` と `label` だけで、
@@ -80,7 +80,7 @@ iOS 固有の差分は SPEC.md の「iOS 版との対応」に追記する。
 強さは周回数と回り始めの速さ（`spinEasing`）にだけ効き、止まる位置の式は変えない。反時計回りでは `RouletteMath.nextRotation` が
 累積角を減らす向きに決め、`SpinTicks` / `HapticSchedule` は `to < from` を符号を反転して同じ式で数える。モデルは直前のフリックの
 向きを `lastDirection` に覚え、「スピン」ボタンはその向きで回す（初期値は時計回り、保存しない）。停止後は `outcome.index` を `highlightedIndex` として渡し、
-他のスライスを `Theme.sliceDim` で沈める（結果が出たあとに指で動かしたら強調だけ解く）。押し出しと針の跳ねは停止の瞬間だけで、`accessibilityReduceMotion` では省く。
+他のスライスを `Theme.sliceDim` で強く沈め、止まったスライスに白系の縁取り（`stopOutline`）と光彩（既定は `stopGlow`。色は `@AppStorage(Config.glowStyleKey)` の `GlowStyle` で、設定の「ルーレットの詳細設定」から選ぶ）を付ける（結果が出たあとに指で動かしたら強調だけ解く）。停止の瞬間に `stopPulseScale` で押し出して針を跳ねさせ、スライスはそのあと結果が出ている間 `stopHoldScale` で前に出したままにする（強調が解けたら戻す）。拡大と針の跳ねは `accessibilityReduceMotion` では省く。
 
 ### 触覚の仕組み
 

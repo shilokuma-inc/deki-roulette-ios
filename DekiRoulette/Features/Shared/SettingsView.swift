@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// ヘッダ右上のアイコンから開く設定。触覚フィードバックと効果音の切替、項目の初期化、著作権の項目を置く。
+/// ヘッダ右上のアイコンから開く設定。触覚フィードバックと効果音の切替、ルーレットの詳細設定（光彩の色）、
+/// 項目の初期化、著作権の項目を置く。
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(Config.hapticsEnabledKey) private var hapticsEnabled = true
@@ -35,6 +36,29 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(Theme.muted)
                     }
+                    NavigationLink {
+                        RouletteAdvancedSettingsView()
+                    } label: {
+                        HStack {
+                            Text(L10n.rouletteAdvancedTitle)
+                                .font(.callout.weight(.bold))
+                                .foregroundStyle(Theme.ivory)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Theme.muted)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 12)
+                        .frame(minHeight: 44)
+                        .background(Theme.ink800, in: .rect(cornerRadius: 12))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(Theme.ink700, lineWidth: 1)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     SettingsSection(title: L10n.resetItemsTitle) {
                         Text(L10n.resetItemsDescription)
                             .font(.caption)
@@ -117,6 +141,49 @@ struct SettingsView: View {
         case .roulette: rouletteModel.resetItems()
         case .order: orderModel.resetItems()
         }
+    }
+}
+
+/// 設定から進む「ルーレットの詳細設定」。止まったスライスの光彩の色を選ぶ。
+private struct RouletteAdvancedSettingsView: View {
+    @AppStorage(Config.glowStyleKey) private var glowStyle = GlowStyle.default
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                SettingsSection(title: L10n.glowStyleTitle) {
+                    ForEach(GlowStyle.allCases, id: \.self) { style in
+                        let selected = glowStyle == style
+                        Button {
+                            glowStyle = style
+                        } label: {
+                            HStack {
+                                Text(L10n.glowStyleName(style))
+                                    .font(.subheadline)
+                                    .foregroundStyle(Theme.ivory)
+                                Spacer(minLength: 0)
+                                Image(systemName: "checkmark")
+                                    .font(.footnote.weight(.bold))
+                                    .foregroundStyle(Theme.ivory)
+                                    .opacity(selected ? 1 : 0)
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selected ? .isSelected : [])
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
+        }
+        .background(Theme.ink900.ignoresSafeArea())
+        .navigationTitle(L10n.rouletteAdvancedTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Theme.ink800, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
     }
 }
 

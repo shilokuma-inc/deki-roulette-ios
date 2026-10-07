@@ -7,7 +7,6 @@ enum L10n {
     static var tagline: String { tr("tagline") }
     static var spin: String { tr("spin") }
     static var spinning: String { tr("spinning") }
-    static var resultPlaceholder: String { tr("resultPlaceholder") }
     static func resultAnnounce(_ label: String) -> String { fmt("resultAnnounce", label) }
     static var itemListTitle: String { tr("itemListTitle") }
     static var addPlaceholder: String { tr("addPlaceholder") }
@@ -47,6 +46,15 @@ enum L10n {
     static var orderUseCases: String { tr("orderUseCases") }
     static var settingsTitle: String { tr("settingsTitle") }
     static var soundTitle: String { tr("soundTitle") }
+    static var rouletteAdvancedTitle: String { tr("rouletteAdvancedTitle") }
+    static var glowStyleTitle: String { tr("glowStyleTitle") }
+    static func glowStyleName(_ style: GlowStyle) -> String {
+        switch style {
+        case .white: tr("glowStyleWhite")
+        case .slice: tr("glowStyleSlice")
+        case .rainbow: tr("glowStyleRainbow")
+        }
+    }
     static var soundToggle: String { tr("soundToggle") }
     static var soundNote: String { tr("soundNote") }
     static var close: String { tr("close") }

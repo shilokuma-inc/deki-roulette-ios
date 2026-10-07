@@ -102,6 +102,26 @@ struct WheelSwayTests {
         #expect(previous > 0)
     }
 
+    @Test(arguments: [Double.infinity, -Double.infinity, Double.nan, 0, -1, 1e9])
+    func 範囲外のばねの値は範囲に寄せる(value: Double) {
+        let spring = SpringParameters(response: value, dampingRatio: value)
+        #expect(spring.stiffness.isFinite && spring.stiffness > 0)
+        #expect(spring.damping.isFinite && spring.damping >= 0)
+        #expect(spring.stableStep > 0)
+        var axis = SpringAxis()
+        axis.step(toward: 20, duration: 1.0 / 60, spring: spring)
+        #expect(axis.position.isFinite && axis.velocity.isFinite)
+    }
+
+    @Test func 範囲の端のばねでも繰り返しは上限に収まる() {
+        let extreme = SpringParameters(
+            response: SpringParameters.responseRange.lowerBound,
+            dampingRatio: SpringParameters.dampingRatioRange.upperBound
+        )
+        let iterations = (SpringAxis.maxStepDuration / extreme.stableStep).rounded(.up)
+        #expect(iterations <= Double(SpringAxis.maxIterations))
+    }
+
     @Test func 勢いを足すと目標にいても揺れる() {
         var axis = SpringAxis(position: 10, velocity: 0)
         #expect(axis.isAtRest(at: 10))

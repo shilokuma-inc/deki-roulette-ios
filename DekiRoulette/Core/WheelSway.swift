@@ -13,15 +13,20 @@ struct SpringAxis: Equatable, Sendable {
     /// 数値計算の刻み（秒）の上限。ばねが硬い・減衰が強いときは `SpringParameters.stableStep` まで細かくする。
     static let substep: TimeInterval = 1.0 / 240
 
+    /// 1 回の `step` で計算を繰り返す回数の上限。刻みが細かくなりすぎても更新が長く止まらないようにする。
+    static let maxIterations = 2048
+
     /// `target` へ向けて `duration` 秒だけ進める（半陰的オイラー法）。`duration` は `maxStepDuration` で抑える。
     mutating func step(toward target: Double, duration: TimeInterval, spring: SpringParameters = .wheelSway) {
-        var remaining = min(max(duration, 0), Self.maxStepDuration)
-        while remaining > 1e-12 {
-            let dt = min(remaining, Self.substep, spring.stableStep)
+        let total = min(max(duration, 0), Self.maxStepDuration)
+        guard total > 0 else { return }
+        let step = min(Self.substep, spring.stableStep)
+        let count = min(Int((total / step).rounded(.up)), Self.maxIterations)
+        let dt = total / Double(count)
+        for _ in 0..<count {
             let acceleration = -spring.stiffness * (position - target) - spring.damping * velocity
             velocity += acceleration * dt
             position += velocity * dt
-            remaining -= dt
         }
     }
 
@@ -43,10 +48,21 @@ struct SpringParameters: Equatable, Sendable {
     /// 減衰係数（1/秒）。
     var damping: Double
 
+    /// 受け付ける周期（秒）。短すぎると刻みが細かくなりすぎ、長すぎると目標へ戻らないのと変わらない。
+    static let responseRange: ClosedRange<TimeInterval> = 0.05...10
+    /// 受け付ける減衰比。大きすぎると刻みが細かくなりすぎる（10 で既に目標へほとんど寄らない）。
+    static let dampingRatioRange: ClosedRange<Double> = 0...10
+
+    /// 範囲外の値は範囲の端に、数でない値（NaN）は範囲の下端に寄せる。
     init(response: TimeInterval, dampingRatio: Double) {
-        let omega = 2 * Double.pi / max(response, 1e-3)
+        let omega = 2 * Double.pi / Self.clamp(response, to: Self.responseRange)
         stiffness = omega * omega
-        damping = 2 * max(dampingRatio, 0) * omega
+        damping = 2 * Self.clamp(dampingRatio, to: Self.dampingRatioRange) * omega
+    }
+
+    private static func clamp(_ value: Double, to range: ClosedRange<Double>) -> Double {
+        guard !value.isNaN else { return range.lowerBound }
+        return min(max(value, range.lowerBound), range.upperBound)
     }
 
     /// 半陰的オイラー法が発散しない刻み（秒）。固有角振動数と減衰係数の大きい方に対して 0.2 に収まる長さにする

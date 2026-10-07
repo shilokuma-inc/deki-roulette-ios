@@ -130,6 +130,21 @@ struct Wheel3DSceneTests {
         }
     }
 
+    /// 文字は半径方向に左から右へ並び、右半分では中心側から、左半分では外周側から読み始める（2D と同じ向き）。
+    /// 先頭にだけ印のあるラベルで、印が出る側を確かめる（左右に反転すると逆の側に出る）。
+    @Test func ラベルの文字は2Dと同じ向きに並ぶ() throws {
+        let label = "■\u{3000}\u{3000}\u{3000}"
+        let pixels = try render(makeScene(labels: ["", label, "", label], rotation: 0))
+        let inner = WheelLabel.radiusFraction - 0.13
+        let outer = WheelLabel.radiusFraction + 0.13
+        // 右半分（135 度）は中心側が先頭
+        #expect(inkCount(around: location(angle: 135, fraction: inner, pixels: pixels), pixels: pixels) > 30)
+        #expect(inkCount(around: location(angle: 135, fraction: outer, pixels: pixels), pixels: pixels) == 0)
+        // 左半分（315 度）は逆さまにしないよう返すので、外周側が先頭
+        #expect(inkCount(around: location(angle: 315, fraction: outer, pixels: pixels), pixels: pixels) > 30)
+        #expect(inkCount(around: location(angle: 315, fraction: inner, pixels: pixels), pixels: pixels) == 0)
+    }
+
     @Test func ラベルは盤と一緒に回る() throws {
         let pixels = try render(makeScene(labels: ["", "■■■", "", ""], rotation: 180))
         let moved = location(angle: 315, fraction: WheelLabel.radiusFraction, pixels: pixels)

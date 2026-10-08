@@ -188,5 +188,14 @@ Web 版と同じ。以下は仕様であって削ったり戻したりしない�
 <リポジトリ> で epic/<機能名> のループを回したい。ゴールは Discussion #N
 ```
 
+担当者が自分の Mac の Claude Code で手動ループを回すとき（AskHub で「手動で回す」を選び、担当者に指定されたとき）は、AskHub からコピーした次の指示を受ける。
+手順は `.claude/ralph/README.md` の「手で回す（manual-loop）」にあり、**`scripts/askhub-manual.sh`（start → launch → status → resume → final）で行う**:
+
+```
+<リポジトリ> で Discussion #N の epic を手動ループで回して（scripts/askhub-manual.sh を使う）
+<リポジトリ> の Discussion #N の手動ループを再開して（scripts/askhub-manual.sh resume）
+<リポジトリ> の Discussion #N の手動ループの最終 PR を作って（scripts/askhub-manual.sh final）
+```
+
 ループの検証コマンド（playbook の `{{VERIFY_COMMANDS}}`）は、`.xcodeproj` が git 管理外なので必ず `xcodegen generate` から始める。
 作業スロット（worktree）ごとに生成し直し、`-derivedDataPath` はスロットごとにリポジトリの外へ分ける。

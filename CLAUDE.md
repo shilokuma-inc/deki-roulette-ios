@@ -194,6 +194,7 @@ Web 版と同じ。以下は仕様であって削ったり戻したりしない�
 ```
 <リポジトリ> で Discussion #N の epic を手動ループで回して（scripts/askhub-manual.sh を使う）
 <リポジトリ> の Discussion #N の手動ループを再開して（scripts/askhub-manual.sh resume）
+<リポジトリ> の Discussion #N の手動ループの最終 PR を作って（scripts/askhub-manual.sh final）
 ```
 
 ループの検証コマンド（playbook の `{{VERIFY_COMMANDS}}`）は、`.xcodeproj` が git 管理外なので必ず `xcodegen generate` から始める。

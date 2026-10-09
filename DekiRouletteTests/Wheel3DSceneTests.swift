@@ -272,20 +272,28 @@ struct Wheel3DSceneTests {
         #expect(isClose(color, srgb(Theme.flare)), "\(color)")
     }
 
-    /// 帯の中央（針の先の下）の位置。
+    /// 帯の中央（盤面の中心より下）の位置。場面の y は上向き。
     private var bandCenterY: Double {
-        let diameter = Double(size)
-        let top = diameter / 2 - ResultBand.top(diameter: diameter, pointerBounce: Theme.pointerBounceOffset)
-        // 帯の高さはおよそ文字の高さ + 上下の余白。中央より少し上を見る
-        return top - ResultBand.fontSize(diameter: diameter) * 0.5
+        -ResultBand.centerOffset(diameter: Double(size))
     }
 
-    @Test func 結果の帯は針の下に出る() throws {
+    @Test func 結果の帯は盤面の中心より下に出る() throws {
         let scene = makeScene(count: 4, rotation: 0)
         scene.show(result: Wheel3DResult(id: "a1", label: "\u{3000}", accent: Theme.sliceColor(at: 2, count: 4)), reduceMotion: true)
         let pixels = try render(scene)
         let color = pixels.color(at: location(x: 0, y: bandCenterY, pixels: pixels))
         #expect(isClose(color, srgb(Theme.resultBandFill)), "\(color)")
+    }
+
+    @Test func 結果の帯は針の下の上半分には出ない() throws {
+        let scene = makeScene(count: 4, rotation: 0)
+        scene.show(result: Wheel3DResult(id: "a1", label: "\u{3000}", accent: Theme.sliceColor(at: 2, count: 4)), reduceMotion: true)
+        let pixels = try render(scene)
+        // 針の先のすぐ下（以前の帯の位置）と、中心をはさんで帯と反対側
+        for y in [Double(size) / 2 * 0.65, -bandCenterY] {
+            let color = pixels.color(at: location(x: 0, y: y, pixels: pixels))
+            #expect(!isClose(color, srgb(Theme.resultBandFill)), "\(y): \(color)")
+        }
     }
 
     @Test func 結果が消えると帯も消える() throws {

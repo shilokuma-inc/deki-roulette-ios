@@ -508,7 +508,8 @@ final class Wheel3DScene {
         pointerNode.addChildNode(node)
     }
 
-    /// 結果の帯の板。2D と同じ `ResultBandLabel` を画像に焼き、針の先の下（`ResultBand.top`）に置く。
+    /// 結果の帯の板。2D と同じ `ResultBandLabel` を画像に焼き、2D と同じく盤面の中心より下（`ResultBand.centerOffset`）に置く。
+    /// 傾く面（`tiltNode`）に乗せるので盤と一緒に傾き、回転はしない。ハブ・縁より手前（`bandLift`）に出す。
     private func makeBand(_ result: Wheel3DResult, shape: Shape) -> SCNNode? {
         let diameter = Double(shape.diameter)
         let scale = diameter / WheelLabel.referenceDiameter
@@ -526,9 +527,8 @@ final class Wheel3DScene {
         material.diffuse.contents = image
         plane.materials = [material]
         let node = SCNNode(geometry: plane)
-        let bandTop = diameter / 2 - ResultBand.top(diameter: diameter, pointerBounce: Theme.pointerBounceOffset)
-        let bandHeight = Double(image.size.height) - margin * 2
-        node.position = SCNVector3(0, Float(bandTop - bandHeight / 2), Self.bandLift(scale: scale))
+        // 場面の y は上向きなので、中心より下は負
+        node.position = SCNVector3(0, Float(-ResultBand.centerOffset(diameter: diameter)), Self.bandLift(scale: scale))
         return node
     }
 

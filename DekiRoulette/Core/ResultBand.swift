@@ -3,7 +3,7 @@ import Foundation
 /// 結果が出ている間、盤面の中心より下に重ねる帯の寸法。盤面と同じく Dynamic Type には追従させず、直径に比例させる。
 ///
 /// 帯の中心は盤面の中心から半径 × `centerOffsetRatio` だけ下に置く。中心のハブ（直径 `baseHubDiameter`）とは重ねず、
-/// 帯（カプセル）は盤面のスライスの円（半径は外枠から `baseSliceInset` 内側）に収める。
+/// 帯（カプセル）は盤面のスライスの円（半径は外枠から `baseSliceInset` 内側）に収める。2D と 3D で同じ寸法を使う。
 enum ResultBand {
     /// 基準の直径での文字サイズ（pt）。盤面のラベル（最大 15pt）より大きくして結果を読ませる。
     static let baseFontSize: Double = 28
@@ -22,10 +22,6 @@ enum ResultBand {
     static let baseHubDiameter: Double = 38
     /// 盤面の外枠からスライスの円までの距離（基準の直径での pt）。`RouletteWheelView` と同じ。
     static let baseSliceInset: Double = 16
-    /// 盤面の上端から針の先までの高さ（pt）。3D の帯が新しい位置に揃うまでの間だけ使う（`top`）。
-    static let pointerBottom: Double = 20
-    /// 帯と針の先の間隔（基準の直径での pt）。3D の帯が新しい位置に揃うまでの間だけ使う（`top`）。
-    static let baseGap: Double = 8
 
     private static func ratio(_ diameter: Double) -> Double {
         max(0, diameter) / WheelLabel.referenceDiameter
@@ -69,10 +65,5 @@ enum ResultBand {
     /// スライスの円の半径（pt）。
     static func sliceRadius(diameter: Double) -> Double {
         max(0, max(0, diameter) / 2 - baseSliceInset * ratio(diameter))
-    }
-
-    /// 盤面の上端から帯の上端までの距離（pt）。3D の帯が新しい位置に揃うまでの間だけ使う。
-    static func top(diameter: Double, pointerBounce: Double) -> Double {
-        pointerBottom + pointerBounce + baseGap * ratio(diameter)
     }
 }

@@ -95,13 +95,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "© 2026 basekeita, Takumi Muraishi"
+            "value" : "© 2026 basekeita, Takumi Muraishi, M0710Fa"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "© 2026 basekeita, Takumi Muraishi"
+            "value" : "© 2026 basekeita, Takumi Muraishi, M0710Fa"
           }
         }
       }
@@ -112,13 +112,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The copyright of this app belongs to basekeita and Takumi Muraishi (@mrs1669)."
+            "value" : "The copyright of this app belongs to basekeita, Takumi Muraishi (@mrs1669), and M0710Fa."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "本アプリの著作権は basekeita と Takumi Muraishi (@mrs1669) に帰属します。"
+            "value" : "本アプリの著作権は basekeita、Takumi Muraishi (@mrs1669)、M0710Fa に帰属します。"
           }
         }
       }

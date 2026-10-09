@@ -119,7 +119,8 @@ iOS 17 のまま）で、厚みのある盤・外周の縁・中心のハブ・�
 角速度は画面平面上の指の動きのまま。
 
 針と結果の帯は盤と同じ面（`Wheel3DScene` の `tiltNode`）に乗せ、盤と一緒に傾ける（回転はしない）。帯は 2D と同じ
-`ResultBandLabel` を画像に焼いて貼るので、3D では `RouletteScreen` の `overlay(alignment: .top) { resultBand }` は出さない。
+`ResultBandLabel` を画像に焼き、2D と同じく盤の中心から `ResultBand.centerOffset` だけ下（ハブ・縁より手前の `bandLift`）に貼るので、
+3D では `RouletteScreen` の `overlay { resultBand }` は出さない。
 停止時の強調は 2D と同じ定数で、他のスライスに `Theme.sliceDim` を重ねた板を置き、止まったスライスは 2D と同じ塗り・ラベル・
 縁取り・光彩（`StopGlow` を共有）を焼いた画像を側面付きの板に貼って縁の高さまで持ち上げ、`stopPulseScale` → `stopHoldScale` で
 押し出す（戻りは `CASpringAnimation(perceptualDuration:bounce:)` で 2D の `stopSettleAnimation` と同じばね）。針も同じ曲線で沈む。

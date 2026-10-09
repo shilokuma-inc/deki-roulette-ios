@@ -71,7 +71,7 @@ struct RouletteScreen: View {
             wheel
             // 帯は回転しない層に置く（盤面の `rotationEffect` の外側）。盤面のフリックを妨げないよう触れられなくする。
             // 3D 表示では帯を盤と同じ面に乗せるので、3D の盤面が自分で描く
-            .overlay(alignment: .top) {
+            .overlay {
                 if !wheel3DEnabled { resultBand }
             }
             .frame(maxWidth: regular ? Theme.Layout.wheelMaxWidthRegular : Theme.Layout.wheelMaxWidthCompact)
@@ -139,7 +139,7 @@ struct RouletteScreen: View {
         )
     }
 
-    /// 針のすぐ下に重ねる結果の帯。盤面の下に結果の領域は持たず、結果のラベルはここで全文を出す（盤面のラベルは省略される）。
+    /// 盤面の中心より下に重ねる結果の帯。盤面の下に結果の領域は持たず、結果のラベルはここで全文を出す（盤面のラベルは省略される）。
     /// 出し直しは `spinCount` 基準で、指で盤面を動かしても出し直さない。
     /// 盤面と同じく装飾扱いで読み上げない（結果は Announcement で伝える）。
     @ViewBuilder
@@ -153,8 +153,9 @@ struct RouletteScreen: View {
                     accent: Theme.sliceColor(at: outcome.index, count: model.items.count),
                     diameter: diameter
                 )
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, ResultBand.top(diameter: diameter, pointerBounce: Theme.pointerBounceOffset))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // 盤面は正方形なので、枠の中心が盤面の中心
+                    .offset(y: ResultBand.centerOffset(diameter: diameter))
                     .revealOnAppear(reducedMotion: reduceMotion)
                     .id(outcome.label + "\(model.spinCount)")
             }
@@ -224,8 +225,8 @@ struct ResultBandLabel: View {
             .lineLimit(1)
             .minimumScaleFactor(ResultBand.minimumScaleFactor)
             .truncationMode(.tail)
-            .padding(.horizontal, 14 * scale)
-            .padding(.vertical, 5 * scale)
+            .padding(.horizontal, ResultBand.horizontalPadding(diameter: diameter))
+            .padding(.vertical, ResultBand.verticalPadding(diameter: diameter))
             .background(Theme.resultBandFill, in: .capsule)
             .overlay(Capsule().strokeBorder(accent, lineWidth: 2 * scale))
             .shadow(color: Theme.resultBandShadow, radius: 4 * scale, y: 2 * scale)

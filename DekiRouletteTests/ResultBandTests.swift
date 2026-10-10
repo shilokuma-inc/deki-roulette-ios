@@ -1,20 +1,33 @@
+import Foundation
 import Testing
 @testable import DekiRoulette
 
 struct ResultBandTests {
     @Test func 基準の直径では基準の文字サイズになる() {
         #expect(ResultBand.fontSize(diameter: WheelLabel.referenceDiameter) == ResultBand.baseFontSize)
+        #expect((26...30).contains(ResultBand.baseFontSize))
     }
 
-    @Test func 文字サイズと幅は直径に比例する() {
+    @Test func 文字サイズと幅と位置は直径に比例する() {
         #expect(ResultBand.fontSize(diameter: 480) == ResultBand.baseFontSize * 1.5)
         #expect(ResultBand.maxWidth(diameter: 480) == 480 * ResultBand.maxWidthRatio)
+        #expect(ResultBand.centerOffset(diameter: 480) == ResultBand.centerOffset(diameter: 320) * 1.5)
+        #expect(abs(ResultBand.height(diameter: 480) - ResultBand.height(diameter: 320) * 1.5) < 1e-9)
     }
 
-    @Test(arguments: [200.0, 320, 480])
-    func 帯は沈んだ針の先より下に置く(diameter: Double) {
-        let bounce = 4.0
-        #expect(ResultBand.top(diameter: diameter, pointerBounce: bounce) > ResultBand.pointerBottom + bounce)
+    @Test(arguments: [120.0, 200, 320, 480])
+    func 帯は中心より下に置きハブと重ならない(diameter: Double) {
+        let top = ResultBand.centerOffset(diameter: diameter) - ResultBand.height(diameter: diameter) / 2
+        #expect(top > ResultBand.hubRadius(diameter: diameter))
+    }
+
+    @Test(arguments: [120.0, 200, 320, 480])
+    func 帯はスライスの円に収まる(diameter: Double) {
+        // 帯はカプセル。いちばん外に出るのは下側の両端の半円
+        let height = ResultBand.height(diameter: diameter)
+        let halfStraight = ResultBand.maxWidth(diameter: diameter) / 2 - height / 2
+        let farthest = hypot(halfStraight, ResultBand.centerOffset(diameter: diameter)) + height / 2
+        #expect(farthest < ResultBand.sliceRadius(diameter: diameter))
     }
 
     @Test func 帯は盤面のラベルより大きい文字で出す() {
@@ -26,5 +39,8 @@ struct ResultBandTests {
     @Test func 負の直径は0として扱う() {
         #expect(ResultBand.fontSize(diameter: -10) == 0)
         #expect(ResultBand.maxWidth(diameter: -10) == 0)
+        #expect(ResultBand.centerOffset(diameter: -10) == 0)
+        #expect(ResultBand.height(diameter: -10) == 0)
+        #expect(ResultBand.sliceRadius(diameter: -10) == 0)
     }
 }
